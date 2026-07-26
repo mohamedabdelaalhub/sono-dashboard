@@ -34,11 +34,11 @@ window.SONO_CONFIG = {
   /* ---------- تسجيل الدخول ----------
      'supabase' = حماية حقيقية + إدارة أدمنز من اللوحة (موصى به).
      'local'    = بوابة داخل الصفحة، للتجربة السريعة فقط.            */
-  authMode : 'local',
+  authMode : 'supabase',
 
   supabase : {
-    url     : 'https://XXXXXXXXXXXX.supabase.co',
-    anonKey : 'ضع-هنا-مفتاح-anon-public'
+    url     : 'https://raocrmssjqsozibniujc.supabase.co',
+    anonKey : 'sb_publishable__TYwltqElKKLVIMPEfQEyg_nvP62RQk'
   },
 
   /* يُستخدم فقط عندما authMode = 'local'.
