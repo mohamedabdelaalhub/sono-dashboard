@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>مركز عيادات سونو التخصصية — لوحة المؤشرات</title>
+<meta name="description" content="لوحة تحليل مالي وتشغيلي للمركز الطبي — ارفع ملف الخزينة واحصل على تقرير كامل بالمخاطر والتوصيات وخطة العمل.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+
+<!-- ============================================================
+     صفحة الهبوط + تسجيل الدخول
+     ============================================================ -->
+<div id="landing">
+  <div class="lgrid">
+
+    <!-- الجانب التعريفي -->
+    <section class="lhero">
+      <div class="lheroin">
+        <div class="lbrand">
+          <div class="logopanel" id="logoBig"></div>
+          <div class="lbrandtxt">
+            <h1 id="lTitle">مركز عيادات سونو التخصصية</h1>
+            <p id="lTag">رعاية طبية متكاملة بمعايير التخصص</p>
+          </div>
+        </div>
+
+        <h2 class="lhead">لوحة المؤشرات المالية والتشغيلية</h2>
+        <p class="lsub">
+          ارفع ملف الخزينة، واحصل خلال ثوانٍ على تقرير كامل: المؤشرات، المخاطر،
+          التوصيات، وخطة عمل الشهر القادم بمهام ومدد زمنية محددة.
+        </p>
+
+        <ul class="lfeat">
+          <li><i></i><div><b>تحليل تلقائي</b><span>الوارد والمنصرف والخدمات والأطباء والمستهلكات</span></div></li>
+          <li><i></i><div><b>مخاطر وتوصيات</b><span>مسنَدة بالأرقام ومقارنة بمستهدفات مركزك</span></div></li>
+          <li><i></i><div><b>خطة عمل جاهزة</b><span>مهام بمسؤول ومدة ومؤشر قياس</span></div></li>
+          <li><i></i><div><b>تصدير Excel و PDF</b><span>تقرير كامل جاهز للاجتماع</span></div></li>
+        </ul>
+
+        <div class="lart" id="lart"></div>
+        <p class="lnote">التحليل يتم بالكامل داخل متصفحك — بيانات المرضى لا تُرفع إلى أي خادم.</p>
+      </div>
+    </section>
+
+    <!-- كارت الدخول -->
+    <section class="lauth">
+      <div class="lbox">
+        <div class="logomark" id="logoSm"></div>
+
+        <!-- تبويب دخول / حساب جديد -->
+        <div class="lswitch">
+          <button type="button" id="tabIn" aria-pressed="true">تسجيل الدخول</button>
+          <button type="button" id="tabUp" aria-pressed="false">حساب جديد</button>
+        </div>
+
+        <div id="authErr" class="err hide"></div>
+        <div id="authOk"  class="ok hide"></div>
+
+        <!-- دخول -->
+        <form id="loginForm" autocomplete="on">
+          <div class="fld">
+            <label for="email">البريد الإلكتروني</label>
+            <input type="email" id="email" name="email" required autocomplete="username" dir="ltr" placeholder="name@example.com">
+          </div>
+          <div class="fld">
+            <label for="pass">كلمة السر</label>
+            <input type="password" id="pass" name="password" required autocomplete="current-password" dir="ltr">
+          </div>
+          <button class="btn" type="submit" id="loginBtn">دخول</button>
+        </form>
+
+        <!-- حساب جديد (للمدعوّين) -->
+        <form id="signupForm" class="hide" autocomplete="on">
+          <p class="hint">أنشئ حسابك بالبريد الذي أضافه لك مدير المركز. لن تستطيع الدخول قبل أن يُضاف بريدك.</p>
+          <div class="fld">
+            <label for="suEmail">البريد الإلكتروني</label>
+            <input type="email" id="suEmail" required autocomplete="username" dir="ltr" placeholder="name@example.com">
+          </div>
+          <div class="fld">
+            <label for="suName">الاسم</label>
+            <input type="text" id="suName" required autocomplete="name" placeholder="الاسم الكامل">
+          </div>
+          <div class="fld">
+            <label for="suPass">كلمة السر</label>
+            <input type="password" id="suPass" required minlength="8" autocomplete="new-password" dir="ltr" placeholder="8 أحرف على الأقل">
+          </div>
+          <button class="btn" type="submit" id="suBtn">إنشاء الحساب</button>
+        </form>
+
+        <div class="foot" id="loginFoot"></div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<!-- ============================================================
+     التطبيق
+     ============================================================ -->
+<div id="app" class="hide">
+
+<header class="top">
+  <div class="topin">
+    <div class="brand">
+      <div class="logo xs" id="logoTop"></div>
+      <div>
+        <b id="hName">مركز عيادات سونو التخصصية</b>
+        <span id="hBranch">فرع حدائق الأهرام</span>
+      </div>
+    </div>
+    <div class="topact">
+      <span class="who" id="who"></span>
+      <button class="btn ghost" id="btnAi"    disabled>تحليل ذكي</button>
+      <button class="btn ghost" id="btnXlsx"  disabled>تصدير Excel</button>
+      <button class="btn ghost" id="btnPdf"   disabled>تصدير PDF</button>
+      <button class="btn ghost" id="btnPrint" disabled>طباعة / حفظ PDF</button>
+      <button class="btn ghost icon" id="btnAdmin" title="لوحة التحكم" hidden>⚙</button>
+      <button class="btn ghost" id="btnOut">خروج</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="drop" id="drop" role="button" tabindex="0">
+    <b>اسحب ملف الإكسل هنا أو اضغط للاختيار</b>
+    <span>يقبل ‎.xlsx‎ و‎.xls‎ و‎.csv‎ — يمكنك رفع أكثر من ملف معاً (شهور مختلفة) للمقارنة بين الفترات</span>
+    <input type="file" id="file" accept=".xlsx,.xls,.csv" multiple hidden>
+  </div>
+  <div class="files" id="fileChips"></div>
+
+  <div class="toolbar hide" id="toolbar">
+    <div class="tgrp">
+      <label for="gran">تقسيم الفترة</label>
+      <select id="gran">
+        <option value="all">كل البيانات المرفوعة</option>
+        <option value="week">أسبوعي</option>
+        <option value="month" selected>شهري</option>
+        <option value="quarter">ربع سنوي</option>
+        <option value="year">سنوي</option>
+        <option value="custom">فترة مخصصة</option>
+      </select>
+    </div>
+    <div class="tgrp" id="grpPeriod">
+      <label for="period">الفترة</label>
+      <select id="period"></select>
+    </div>
+    <div class="tgrp hide" id="grpFrom"><label for="dFrom">من</label><input type="date" id="dFrom"></div>
+    <div class="tgrp hide" id="grpTo"><label for="dTo">إلى</label><input type="date" id="dTo"></div>
+    <div class="tgrp"><label>&nbsp;</label><button class="btn ghost" id="btnClear">مسح الملفات</button></div>
+    <div class="tgrp" style="margin-right:auto"><label>مقارنة</label><span class="who" id="cmpLbl">—</span></div>
+  </div>
+
+  <nav class="tabs hide" id="tabs" role="tablist">
+    <button role="tab" data-t="sum"  aria-selected="true">ملخص التقرير</button>
+    <button role="tab" data-t="kpi"  aria-selected="false">المؤشرات</button>
+    <button role="tab" data-t="risk" aria-selected="false">المخاطر <span class="cnt" id="cRisk">0</span></button>
+    <button role="tab" data-t="rec"  aria-selected="false">التوصيات <span class="cnt" id="cRec">0</span></button>
+    <button role="tab" data-t="plan" aria-selected="false">خطة العمل <span class="cnt" id="cPlan">0</span></button>
+    <button role="tab" data-t="ai"   aria-selected="false" id="tabAi">التحليل الذكي</button>
+    <button role="tab" data-t="data" aria-selected="false" id="tabData">البيانات التفصيلية</button>
+  </nav>
+
+  <main id="main">
+    <div class="empty" id="welcome">
+      <b>ابدأ برفع ملف الخزينة</b>
+      كل التحليل يتم داخل متصفحك — لا تُرفع أي بيانات إلى أي خادم.
+    </div>
+    <section class="tabpane hide" id="pane-sum"></section>
+    <section class="tabpane hide" id="pane-kpi"></section>
+    <section class="tabpane hide" id="pane-risk"></section>
+    <section class="tabpane hide" id="pane-rec"></section>
+    <section class="tabpane hide" id="pane-plan"></section>
+    <section class="tabpane hide" id="pane-ai"></section>
+    <section class="tabpane hide" id="pane-data"></section>
+  </main>
+
+  <footer class="pg" id="pgFoot"></footer>
+</div>
+</div>
+
+<!-- ============================================================
+     لوحة التحكم (السوبر أدمن)
+     ============================================================ -->
+<div id="console" class="modal hide">
+  <div class="mbox">
+    <div class="mhead">
+      <h2>لوحة التحكم</h2>
+      <button class="btn ghost icon" id="conClose" title="إغلاق">×</button>
+    </div>
+    <div class="mtabs">
+      <button data-c="users" aria-selected="true">المستخدمون والصلاحيات</button>
+      <button data-c="ai"    aria-selected="false">إعدادات الذكاء الاصطناعي</button>
+    </div>
+    <div class="mbody">
+      <div id="con-users"></div>
+      <div id="con-ai" class="hide"></div>
+    </div>
+  </div>
+</div>
+
+<div id="tip" role="status"></div>
+<div id="busy" class="hide"><div><div class="spin"></div><p id="busyMsg">جارٍ التحليل…</p></div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<script src="config.js"></script>
+<script src="assets/js/brand.js"></script>
+<script src="assets/js/roles.js"></script>
+<script src="assets/js/parser.js"></script>
+<script src="assets/js/analytics.js"></script>
+<script src="assets/js/rules.js"></script>
+<script src="assets/js/charts.js"></script>
+<script src="assets/js/render.js"></script>
+<script src="assets/js/exporters.js"></script>
+<script src="assets/js/settings.js"></script>
+<script src="assets/js/auth.js"></script>
+<script src="assets/js/admins.js"></script>
+<script src="assets/js/ai.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>

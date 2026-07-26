@@ -1,0 +1,349 @@
+/* ============================================================
+   styles.css — لوحة مركز عيادات سونو
+   ============================================================ */
+:root{
+  --paper:#E7EBEE; --surface:#FFFFFF; --ink:#16242E; --muted:#5E7180; --line:#D4DBE0;
+  --petrol:#0D6E75; --petrol-soft:#D6E8E9; --plum:#6E4B6E; --amber:#B67A12;
+  --moss:#2F7D5C; --clay:#C25B4E; --crit:#9B2C2C;
+  --shadow:0 1px 2px rgba(22,36,46,.06),0 8px 24px rgba(22,36,46,.05);
+  --r:14px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  background:var(--paper); color:var(--ink);
+  font-family:"IBM Plex Sans Arabic",system-ui,"Segoe UI",Tahoma,sans-serif;
+  font-size:15px; line-height:1.65;
+}
+.num{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-variant-numeric:tabular-nums;letter-spacing:-.02em;direction:ltr;unicode-bidi:embed;display:inline-block}
+.wrap{max-width:1280px;margin:0 auto;padding:24px 20px 64px}
+h1,h2,h3,.ttl{font-family:Cairo,sans-serif}
+button{font-family:inherit}
+a{color:var(--petrol)}
+.hide{display:none!important}
+
+/* ============================================================
+   صفحة الهبوط
+   ============================================================ */
+#landing{position:fixed;inset:0;overflow-y:auto;z-index:100;background:var(--paper)}
+.lgrid{min-height:100%;display:grid;grid-template-columns:1.15fr .85fr}
+@media(max-width:940px){.lgrid{grid-template-columns:1fr}}
+
+.lhero{background:linear-gradient(155deg,var(--petrol) 0%,var(--ink) 100%);color:#fff;
+  padding:44px 46px;display:flex;align-items:center;position:relative;overflow:hidden}
+.lhero::after{content:'';position:absolute;inset:auto -120px -160px auto;width:420px;height:420px;
+  border-radius:50%;background:rgba(255,255,255,.05)}
+.lheroin{position:relative;z-index:1;width:100%;max-width:620px;margin:0 auto}
+.lbrand{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-bottom:34px}
+.lbrandtxt h1{font-size:19px;font-weight:800;line-height:1.35}
+.lbrandtxt p{font-size:13px;opacity:.72;margin-top:3px}
+/* الشعار الكامل يوضع على لوح فاتح لأن نصّه داكن */
+.logopanel{background:#fff;border-radius:14px;padding:13px 20px;flex:0 0 auto;
+  box-shadow:0 10px 30px rgba(0,0,0,.20)}
+.logopanel .logoimg,.logopanel .logosvg{height:52px;width:auto;max-width:210px;display:block}
+@media(max-width:560px){.logopanel .logoimg,.logopanel .logosvg{height:42px}}
+.lhead{font-size:clamp(25px,3.6vw,36px);font-weight:800;line-height:1.32;margin-bottom:12px}
+.lsub{font-size:15px;opacity:.84;line-height:1.9;max-width:520px}
+.lfeat{list-style:none;margin:28px 0 8px;display:grid;grid-template-columns:1fr 1fr;gap:15px 22px}
+@media(max-width:560px){.lfeat{grid-template-columns:1fr}}
+.lfeat li{display:flex;gap:11px;align-items:flex-start}
+.lfeat i{flex:0 0 auto;width:8px;height:8px;border-radius:50%;background:#fff;opacity:.75;margin-top:8px}
+.lfeat b{display:block;font-family:Cairo;font-size:14px;font-weight:700;margin-bottom:2px}
+.lfeat span{font-size:12.5px;opacity:.72;line-height:1.65}
+.lart{margin-top:26px}
+.herosvg{width:100%;max-width:540px;height:auto}
+.heroimg{width:100%;max-width:540px;border-radius:14px;display:block;
+  box-shadow:0 18px 44px rgba(0,0,0,.28)}
+.lnote{font-size:12px;opacity:.6;margin-top:20px;line-height:1.8}
+
+/* الشعار */
+.logo{flex:0 0 auto;width:56px;height:56px;display:grid;place-items:center}
+.logo.xs{width:38px;height:38px}
+.logosvg,.logoimg{width:100%;height:100%;object-fit:contain;display:block}
+/* الشعار الكامل داخل كارت الدخول */
+.logomark{margin-bottom:20px}
+.logomark .logoimg,.logomark .logosvg{height:50px;width:auto;max-width:200px;display:block}
+
+/* كارت الدخول */
+.lauth{display:flex;align-items:center;justify-content:center;padding:40px 26px;background:var(--surface)}
+.lbox{width:100%;max-width:380px}
+.lbox h1{font-size:20px;font-weight:800;margin-bottom:4px}
+.lbox p.s{color:var(--muted);font-size:13px;margin-bottom:22px}
+.lswitch{display:flex;gap:3px;background:var(--paper);border-radius:10px;padding:4px;margin-bottom:20px}
+.lswitch button{flex:1;font-family:inherit;font-size:13.5px;font-weight:600;color:var(--muted);
+  background:none;border:0;padding:9px;border-radius:7px;cursor:pointer;transition:.15s}
+.lswitch button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(22,36,46,.14)}
+.hint{font-size:12.5px;color:var(--muted);line-height:1.75;margin-bottom:16px;
+  background:var(--paper);border-radius:9px;padding:10px 12px}
+.ok{background:#EAF6F0;border:1px solid #B9DFCC;color:#1E5C42;border-radius:9px;
+  padding:9px 12px;font-size:13px;margin-bottom:14px;line-height:1.7}
+.fld{margin-bottom:14px}
+.fld label{display:block;font-size:12.5px;color:var(--muted);font-weight:500;margin-bottom:6px}
+.fld input{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px 13px;font-size:14.5px;
+  font-family:inherit;background:#FBFCFD;transition:.15s}
+.fld input:focus{outline:none;border-color:var(--petrol);background:#fff;box-shadow:0 0 0 3px var(--petrol-soft)}
+.btn{width:100%;background:var(--petrol);color:#fff;border:0;border-radius:10px;padding:12px;
+  font-size:15px;font-weight:600;cursor:pointer;transition:.15s}
+.btn:hover{background:#0A585E}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.btn.ghost{background:var(--paper);color:var(--ink);width:auto;padding:8px 16px;font-size:13px;font-weight:500}
+.btn.ghost:hover{background:#DCE2E6}
+.btn.ghost.icon{padding:8px 11px;font-size:16px;line-height:1}
+.btn.sm{width:auto;padding:7px 14px;font-size:13px}
+.btn.danger{background:var(--clay)} .btn.danger:hover{background:#A94A3E}
+.err{background:#FDECEA;border:1px solid #F5C6C0;color:#8C2A1E;border-radius:9px;
+  padding:9px 12px;font-size:13px;margin-bottom:14px}
+.lbox .foot{font-size:11.5px;color:var(--muted);text-align:center;margin-top:18px;line-height:1.8}
+
+/* ---------- الترويسة ---------- */
+header.top{background:var(--surface);border-bottom:1px solid var(--line);
+  position:sticky;top:0;z-index:40;box-shadow:0 1px 3px rgba(22,36,46,.05)}
+.topin{max-width:1280px;margin:0 auto;padding:12px 20px;display:flex;flex-wrap:wrap;
+  align-items:center;gap:14px;justify-content:space-between}
+.brand{display:flex;align-items:center;gap:11px;min-width:0}
+.brand .mk{width:36px;height:36px;border-radius:10px;background:var(--petrol);color:#fff;
+  display:grid;place-items:center;font-family:Cairo;font-weight:800;font-size:16px;flex:0 0 auto}
+.brand b{font-family:Cairo;font-size:15.5px;font-weight:700;display:block;line-height:1.3}
+.brand span{font-size:12px;color:var(--muted)}
+.topact{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.who{font-size:12.5px;color:var(--muted);white-space:nowrap}
+
+/* ---------- شريط الأدوات ---------- */
+.toolbar{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);
+  padding:14px 16px;margin:20px 0;display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.tgrp{display:flex;flex-direction:column;gap:5px}
+.tgrp label{font-size:11.5px;color:var(--muted);font-weight:500}
+.tgrp select,.tgrp input[type=date]{border:1px solid var(--line);border-radius:9px;padding:8px 11px;
+  font-family:inherit;font-size:13.5px;background:#FBFCFD;min-width:150px}
+.tgrp select:focus,.tgrp input:focus{outline:none;border-color:var(--petrol)}
+.drop{border:2px dashed var(--line);border-radius:var(--r);padding:26px 20px;text-align:center;
+  background:var(--surface);cursor:pointer;transition:.15s}
+.drop:hover,.drop.over{border-color:var(--petrol);background:var(--petrol-soft)}
+.drop b{display:block;font-family:Cairo;font-size:15px;margin-bottom:4px}
+.drop span{font-size:12.5px;color:var(--muted)}
+.files{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
+.chip{background:var(--petrol-soft);color:#0A565C;border-radius:20px;padding:4px 11px;font-size:12px;
+  display:inline-flex;align-items:center;gap:7px}
+.chip button{background:none;border:0;color:#0A565C;cursor:pointer;font-size:14px;line-height:1;opacity:.6}
+.chip button:hover{opacity:1}
+
+/* ---------- التابات ---------- */
+nav.tabs{display:flex;gap:4px;background:var(--surface);border-radius:12px;padding:5px;
+  box-shadow:var(--shadow);margin-bottom:20px;overflow-x:auto}
+nav.tabs button{flex:1 0 auto;font-size:13.5px;font-weight:600;color:var(--muted);background:none;
+  border:0;padding:10px 16px;border-radius:9px;cursor:pointer;transition:.15s;white-space:nowrap}
+nav.tabs button:hover{color:var(--ink)}
+nav.tabs button[aria-selected="true"]{background:var(--petrol);color:#fff}
+nav.tabs button .cnt{display:inline-block;background:rgba(255,255,255,.22);border-radius:10px;
+  padding:0 6px;font-size:11px;margin-right:5px;font-family:"IBM Plex Mono",monospace}
+nav.tabs button[aria-selected="false"] .cnt{background:var(--paper);color:var(--muted)}
+
+/* ---------- البطاقات ---------- */
+.card{background:var(--surface);border-radius:var(--r);padding:20px 22px 18px;box-shadow:var(--shadow);margin-bottom:20px}
+.card h2{font-size:17px;font-weight:700;margin-bottom:3px}
+.card .note{font-size:12.5px;color:var(--muted);margin-bottom:16px}
+.chead{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:16px}
+.chead .note{margin-bottom:0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.grid32{display:grid;grid-template-columns:1.35fr 1fr;gap:20px}
+@media(max-width:900px){.grid2,.grid32{grid-template-columns:1fr}}
+
+/* ---------- KPI ---------- */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(176px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:var(--surface);border-radius:var(--r);padding:15px 16px 14px;box-shadow:var(--shadow);
+  border-top:3px solid var(--petrol)}
+.kpi.k2{border-top-color:var(--plum)} .kpi.k3{border-top-color:var(--amber)}
+.kpi.k4{border-top-color:var(--moss)} .kpi.k5{border-top-color:var(--clay)} .kpi.k6{border-top-color:var(--ink)}
+.kpi .lbl{font-size:12.5px;color:var(--muted);font-weight:500;margin-bottom:6px}
+.kpi .val{font-size:25px;font-weight:600;line-height:1.15}
+.kpi .unit{font-size:12px;color:var(--muted);margin-right:4px;font-weight:400}
+.kpi .foot{font-size:11.5px;color:var(--muted);margin-top:7px;border-top:1px solid var(--line);padding-top:6px}
+.dl-up{color:var(--moss)} .dl-dn{color:var(--clay)}
+
+/* ---------- الرسوم ---------- */
+svg{display:block;width:100%;overflow:visible}
+.bar{transition:opacity .12s}
+.dim .bar{opacity:.32} .bar.on{opacity:1}
+.axis{stroke:var(--line);stroke-width:1}
+.tick{font-family:"IBM Plex Mono",monospace;font-size:9.5px;fill:var(--muted)}
+.netline{fill:none;stroke:var(--ink);stroke-width:1.6;stroke-dasharray:3 3;opacity:.55}
+.ribbon-legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:12px}
+.ribbon-legend i{width:11px;height:11px;border-radius:3px;display:inline-block;margin-left:6px;vertical-align:-1px}
+
+/* ---------- أشرطة أفقية ---------- */
+.hrow{display:grid;grid-template-columns:minmax(96px,auto) 1fr auto;align-items:center;gap:11px;
+  padding:5px 0;font-size:13px}
+.hrow .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.track{background:var(--paper);border-radius:5px;height:19px;overflow:hidden}
+.fill{height:100%;border-radius:5px;background:var(--petrol);transition:width .5s cubic-bezier(.22,1,.36,1)}
+.hrow .amt{font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--muted);
+  white-space:nowrap;min-width:64px;text-align:left}
+
+/* ---------- الجداول ---------- */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:right;font-weight:600;font-size:11.5px;color:var(--muted);padding:0 8px 8px;
+  border-bottom:1px solid var(--line);white-space:nowrap}
+th.s{cursor:pointer;user-select:none} th.s:hover{color:var(--petrol)}
+td{padding:8px;border-bottom:1px solid #EEF1F3;vertical-align:top}
+tbody tr:hover{background:#F7F9FA}
+td.n{font-family:"IBM Plex Mono",monospace;text-align:left;font-variant-numeric:tabular-nums;white-space:nowrap}
+.pill{display:inline-block;background:var(--petrol-soft);color:#0A565C;border-radius:20px;
+  padding:1px 9px;font-size:11.5px;font-family:"IBM Plex Mono",monospace}
+.tscroll{overflow-x:auto}
+
+/* ---------- الدونات ---------- */
+.dl{display:grid;grid-template-columns:12px 1fr auto auto;align-items:center;gap:9px;
+  padding:5px 0;font-size:13px;border-bottom:1px solid #F0F3F5}
+.dl:last-child{border:0}
+.dl i{width:11px;height:11px;border-radius:3px}
+.dl .p{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--muted);min-width:46px;text-align:left}
+.dl .v{font-family:"IBM Plex Mono",monospace;font-size:12.5px;min-width:66px;text-align:left}
+
+/* ---------- المخاطر ---------- */
+.risk{border-radius:12px;padding:16px 18px;margin-bottom:12px;background:var(--surface);
+  box-shadow:var(--shadow);border-right:4px solid var(--muted)}
+.risk.critical{border-right-color:var(--crit);background:#FDF2F2}
+.risk.high{border-right-color:var(--clay);background:#FEF5F3}
+.risk.medium{border-right-color:var(--amber)}
+.risk.low{border-right-color:var(--petrol)}
+.risk .rh{display:flex;flex-wrap:wrap;align-items:center;gap:9px;margin-bottom:8px}
+.risk h3{font-size:15.5px;font-weight:700;flex:1 1 auto;min-width:200px}
+.tag{font-size:11px;font-weight:600;border-radius:20px;padding:2px 10px;white-space:nowrap}
+.tag.critical{background:var(--crit);color:#fff}
+.tag.high{background:var(--clay);color:#fff}
+.tag.medium{background:#FBF0DA;color:#7A5408}
+.tag.low{background:var(--petrol-soft);color:#0A565C}
+.tag.area{background:var(--paper);color:var(--muted)}
+.risk p{font-size:13.5px;line-height:1.8}
+.risk .mt{display:flex;flex-wrap:wrap;gap:18px;margin-top:11px;padding-top:10px;border-top:1px solid var(--line);font-size:12.5px}
+.risk .mt b{font-family:"IBM Plex Mono",monospace;font-weight:600}
+.risk .imp{margin-top:9px;font-size:12.5px;color:#7A5408;background:#FDF6E8;border-radius:8px;padding:8px 11px}
+
+/* ---------- التوصيات ---------- */
+.reco{background:var(--surface);border-radius:12px;padding:16px 18px;margin-bottom:12px;box-shadow:var(--shadow)}
+.reco .rh{display:flex;align-items:flex-start;gap:11px;margin-bottom:10px}
+.reco .no{flex:0 0 auto;width:26px;height:26px;border-radius:8px;background:var(--petrol);color:#fff;
+  display:grid;place-items:center;font-family:"IBM Plex Mono",monospace;font-size:13px;font-weight:600}
+.reco h3{font-size:15px;font-weight:700;flex:1}
+.reco ol{margin:0;padding-right:18px;font-size:13.5px;line-height:1.85}
+.reco li{margin-bottom:5px}
+.reco .lnk{font-size:11.5px;color:var(--muted);margin-top:9px;padding-top:8px;border-top:1px solid var(--line)}
+
+/* ---------- خطة العمل ---------- */
+.plan td.pr{white-space:nowrap}
+.prio{display:inline-block;border-radius:20px;padding:1px 9px;font-size:11px;font-weight:600}
+.prio.p1{background:#FDECEA;color:#8C2A1E}
+.prio.p2{background:#FBF0DA;color:#7A5408}
+.prio.p3{background:var(--petrol-soft);color:#0A565C}
+.chk{width:16px;height:16px;accent-color:var(--petrol);cursor:pointer}
+tr.done td{opacity:.45;text-decoration:line-through}
+
+/* ---------- النتيجة ---------- */
+.score{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.gauge{flex:0 0 auto}
+.score .sd{flex:1;min-width:220px}
+.score .sd h2{margin-bottom:6px}
+.score .sd p{font-size:13.5px;color:var(--muted)}
+
+/* ============================================================
+   لوحة التحكم (مودال)
+   ============================================================ */
+.modal{position:fixed;inset:0;background:rgba(22,36,46,.55);z-index:96;
+  display:flex;align-items:flex-start;justify-content:center;padding:34px 18px;overflow-y:auto}
+.mbox{background:var(--surface);border-radius:16px;width:100%;max-width:920px;
+  box-shadow:0 26px 70px rgba(0,0,0,.34);overflow:hidden}
+.mhead{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:17px 22px;border-bottom:1px solid var(--line)}
+.mhead h2{font-size:17px;font-weight:700}
+.mtabs{display:flex;gap:4px;padding:12px 22px 0;border-bottom:1px solid var(--line)}
+.mtabs button{font-family:inherit;font-size:13.5px;font-weight:600;color:var(--muted);background:none;
+  border:0;border-bottom:2px solid transparent;padding:9px 14px;cursor:pointer;transition:.15s}
+.mtabs button[aria-selected="true"]{color:var(--petrol);border-bottom-color:var(--petrol)}
+.mbody{padding:22px}
+.mbody h3{font-family:Cairo;font-size:15px;font-weight:700;margin-bottom:5px}
+.mbody .note{font-size:12.5px;color:var(--muted);margin-bottom:16px;line-height:1.75}
+.frow{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:16px}
+.frow .fld{margin-bottom:0;flex:1;min-width:170px}
+.frow .fld.narrow{flex:0 0 170px}
+.fld select{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px 13px;
+  font-size:14.5px;font-family:inherit;background:#FBFCFD}
+.fld select:focus{outline:none;border-color:var(--petrol)}
+.fld .sub{font-size:11.5px;color:var(--muted);margin-top:5px;line-height:1.7}
+.toggle{display:flex;align-items:flex-start;gap:11px;background:var(--paper);border-radius:11px;
+  padding:13px 15px;margin-bottom:16px;cursor:pointer}
+.toggle input{width:18px;height:18px;accent-color:var(--petrol);margin-top:2px;flex:0 0 auto;cursor:pointer}
+.toggle b{display:block;font-family:Cairo;font-size:13.5px;font-weight:700;margin-bottom:3px}
+.toggle span{font-size:12px;color:var(--muted);line-height:1.7}
+.utable td{vertical-align:middle}
+.utable select{border:1px solid var(--line);border-radius:8px;padding:5px 8px;font-family:inherit;font-size:12.5px;background:#FBFCFD}
+.badge{display:inline-block;border-radius:20px;padding:2px 10px;font-size:11.5px;font-weight:600}
+.badge.on{background:#EAF6F0;color:#1E5C42}
+.badge.off{background:#FDECEA;color:#8C2A1E}
+.badge.pend{background:#FDF6E8;color:#7A5408}
+.keyrow{display:flex;gap:8px;align-items:center}
+.keyrow input{flex:1}
+.masked{font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--muted);
+  background:var(--paper);border-radius:8px;padding:9px 12px;direction:ltr;text-align:left}
+
+/* ============================================================
+   التحليل الذكي
+   ============================================================ */
+.aibox{background:var(--surface);border-radius:var(--r);padding:20px 22px;box-shadow:var(--shadow);margin-bottom:20px}
+.aimd{font-size:14.5px;line-height:2}
+.aimd h3{font-family:Cairo;font-size:16px;font-weight:700;color:var(--petrol);margin:18px 0 7px}
+.aimd h3:first-child{margin-top:0}
+.aimd p{margin-bottom:11px}
+.aimd ul,.aimd ol{padding-right:20px;margin-bottom:12px}
+.aimd li{margin-bottom:5px}
+.aimd strong{font-weight:600}
+.aimd table{margin:10px 0 14px}
+.chat{display:flex;flex-direction:column;gap:12px;max-height:460px;overflow-y:auto;
+  padding:4px 2px;margin-bottom:14px}
+.msg{border-radius:13px;padding:11px 15px;font-size:14px;line-height:1.85;max-width:88%}
+.msg.me{background:var(--petrol);color:#fff;align-self:flex-start;border-bottom-right-radius:4px}
+.msg.ai{background:var(--paper);align-self:flex-end;border-bottom-left-radius:4px}
+.msg.ai .aimd{font-size:14px}
+.askrow{display:flex;gap:9px;align-items:flex-end}
+.askrow textarea{flex:1;border:1px solid var(--line);border-radius:11px;padding:11px 13px;
+  font-family:inherit;font-size:14px;background:#FBFCFD;resize:vertical;min-height:46px;max-height:150px}
+.askrow textarea:focus{outline:none;border-color:var(--petrol)}
+.sugg{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px}
+.sugg button{background:var(--paper);border:1px solid var(--line);border-radius:20px;padding:6px 13px;
+  font-family:inherit;font-size:12.5px;color:var(--ink);cursor:pointer;transition:.15s}
+.sugg button:hover{background:var(--petrol-soft);border-color:var(--petrol)}
+
+/* ---------- تنبيه ---------- */
+.notice{background:#FDF6E8;border:1px solid #EBD9AF;border-radius:var(--r);padding:16px 20px;margin-bottom:20px}
+.notice h3{font-size:15px;font-weight:700;margin-bottom:8px;color:#7A5408}
+.notice ul{list-style:none;font-size:13px;color:#5C4306}
+.notice li{padding:4px 0;display:flex;gap:9px}
+.notice li span{color:#9A7B2E;flex:0 0 auto}
+.empty{text-align:center;padding:56px 20px;color:var(--muted)}
+.empty b{display:block;font-family:Cairo;font-size:17px;color:var(--ink);margin-bottom:6px}
+
+/* ---------- تلميح ---------- */
+#tip{position:fixed;pointer-events:none;background:var(--ink);color:#fff;border-radius:9px;padding:9px 12px;
+  font-size:12.5px;line-height:1.65;box-shadow:0 8px 24px rgba(0,0,0,.28);opacity:0;transition:opacity .12s;
+  z-index:90;max-width:260px}
+#tip b{font-family:"IBM Plex Mono",monospace;font-weight:600}
+#tip .t{font-weight:600;margin-bottom:3px;font-family:Cairo,sans-serif}
+
+/* ---------- محمّل ---------- */
+#busy{position:fixed;inset:0;background:rgba(231,235,238,.86);display:grid;place-items:center;z-index:95}
+.spin{width:36px;height:36px;border:3px solid var(--line);border-top-color:var(--petrol);
+  border-radius:50%;animation:sp .8s linear infinite;margin:0 auto 12px}
+@keyframes sp{to{transform:rotate(360deg)}}
+#busy p{font-size:13.5px;color:var(--muted);text-align:center}
+
+footer.pg{color:var(--muted);font-size:12px;text-align:center;margin-top:26px;line-height:1.9}
+
+/* ---------- الطباعة / PDF ---------- */
+@media print{
+  body{background:#fff}
+  header.top,.toolbar,nav.tabs,.drop,.files,#landing,#busy,.modal,.askrow,.sugg,.noprint{display:none!important}
+  .card,.risk,.reco{box-shadow:none;border:1px solid var(--line);break-inside:avoid}
+  .tabpane{display:block!important}
+  .wrap{max-width:none;padding:0}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}

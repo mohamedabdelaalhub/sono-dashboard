@@ -1,0 +1,7 @@
+node_modules/
+*.xlsx
+*.xls
+*.csv
+!supabase/*.sql
+.DS_Store
+Thumbs.db
