@@ -47,10 +47,11 @@ async function extractRows(buf) {
     const tc = await page.getTextContent();
     const items = tc.items
       .filter(i => i.str && i.str.trim())
-      .map(i => ({ s: i.str, x: i.transform[4], y: Math.round(i.transform[5]) }));
+      .map(i => ({ s: i.str.trim(), x: i.transform[4], y: Math.round(i.transform[5]) }));
     charCount += items.reduce((n, i) => n + i.s.length, 0);
+    if (!items.length) { pages.push([]); continue; }
 
-    /* اجمع في صفوف بتسامح رأسي 3 نقاط */
+    /* ١) اجمع في صفوف بتسامح رأسي 3 نقاط */
     const buckets = [];
     items.forEach(it => {
       let b = buckets.find(x => Math.abs(x.y - it.y) <= 3);
@@ -58,7 +59,32 @@ async function extractRows(buf) {
       b.cells.push(it);
     });
     buckets.sort((a, b) => b.y - a.y);
-    pages.push(buckets.map(b => b.cells.sort((a, c) => c.x - a.x).map(c => c.s.trim())));
+
+    /* ٢) استخرج أعمدة الصفحة بتجميع إحداثيات x المتقاربة.
+       بدون هذه الخطوة تنزلق الأعمدة كلما كانت خانة فارغة. */
+    const xs = items.map(i => i.x).sort((a, b) => a - b);
+    const TOL = 12;
+    const cols = [];
+    xs.forEach(x => {
+      const c = cols[cols.length - 1];
+      if (c && x - c.last <= TOL) { c.sum += x; c.n++; c.last = x; c.c = c.sum / c.n; }
+      else cols.push({ sum: x, n: 1, last: x, c: x });
+    });
+    /* الورقة عربية RTL: العمود الأول هو الأيمن (أكبر x) */
+    const centers = cols.map(c => c.c).sort((a, b) => b - a);
+
+    /* ٣) ضع كل خلية في عمودها حسب أقرب مركز */
+    pages.push(buckets.map(b => {
+      const row = new Array(centers.length).fill('');
+      b.cells.forEach(cell => {
+        let best = 0, bd = Infinity;
+        centers.forEach((c, i) => { const d = Math.abs(c - cell.x); if (d < bd) { bd = d; best = i; } });
+        row[best] = row[best] ? row[best] + ' ' + cell.s : cell.s;
+      });
+      /* احذف الأعمدة الفارغة من نهاية الصف فقط */
+      let end = row.length; while (end > 0 && row[end - 1] === '') end--;
+      return row.slice(0, end);
+    }));
   }
   await doc.destroy();
   return { pages, charCount, numPages: doc.numPages };

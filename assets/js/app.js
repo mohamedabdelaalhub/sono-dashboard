@@ -8,7 +8,18 @@ const P = root.SonoParser, AN = root.SonoAnalytics, RU = root.SonoRules,
       RD = root.SonoRender, EX = root.SonoExport, AU = root.SonoAuth,
       RO = root.SonoRoles, ST = root.SonoSettings, AD = root.SonoAdmins;
 
-const $ = id => document.getElementById(id);
+/* عنصر وهمي آمن — لو اختفى معرّف من الصفحة لا يتوقف التطبيق كله */
+const NOOP = new Proxy({}, {
+  get: (t, k) => (k === 'classList' ? { add() {}, remove() {}, toggle() {}, contains: () => false }
+               : k === 'style' ? {}
+               : k === 'dataset' ? {}
+               : k === 'textContent' || k === 'innerHTML' || k === 'value' ? ''
+               : k === 'querySelectorAll' ? () => []
+               : k === 'querySelector' ? () => null
+               : typeof k === 'string' ? () => {} : undefined),
+  set: () => true
+});
+const $ = id => document.getElementById(id) || (console.warn('عنصر غير موجود:', id), NOOP);
 const state = {
   files: [], income: [], expense: [], status: [],
   A: null, E: null, cmp: null, C: null, cSources: null, tab: 'sum',
@@ -626,14 +637,7 @@ async function exportPdf(scope) {
 
   if (scope === 'tab') {
     const t = state.tab;
-    if (t === 'cmp') {
-    state.tab = t; markTabs(t); showPane(t);
-    $('welcome').classList.add('hide');
-    if (!state.C) $(PANES.cmp).innerHTML =
-      '<div class="empty"><b>لا يوجد تقرير مقارنة معروض</b>افتح تاب «الأرشيف» واختر تقريرين أو أكثر ثم اضغط «مقارنة المحدَّد».</div>';
-    return;
-  }
-  if (t === 'arch') { alert('تاب الأرشيف ليس تقريراً — افتح تقريراً ثم صدّره.'); return; }
+    if (t === 'arch') { alert('تاب الأرشيف ليس تقريراً — افتح تقريراً ثم صدّره.'); return; }
     const el = $(PANES[t]);
     if (!el || !el.innerHTML.trim()) { alert('لا يوجد محتوى في هذا التاب.'); return; }
     busy(true, 'جارٍ بناء ملف PDF…');
