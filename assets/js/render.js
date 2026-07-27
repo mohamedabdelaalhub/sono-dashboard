@@ -163,6 +163,8 @@ function renderKpi(el, A, E, cmp) {
         </tbody></table></div>
     </div>
 
+    ${A.status ? statusBlocks(A.status) : ''}
+
     <div class="grid2">
       <div class="card"><h2>هيكل المصروفات</h2>
         <div class="note">إجمالي المنصرف ${eg(k.cost)}</div>
@@ -182,12 +184,96 @@ function renderKpi(el, A, E, cmp) {
     A.services.slice(0, 12).map(s => ({ label: s.key.length > 34 ? s.key.slice(0, 33) + '…' : s.key, title: s.key, value: s.total })));
   C.hbars(document.getElementById('cExp'),
     A.expCats.map(c => ({ label: c.cat, value: c.total, color: c.cat === 'غير مصنّف' ? 'var(--clay)' : 'var(--petrol)' })));
+  if (A.status) {
+    const dc = document.getElementById('cDisc');
+    if (dc) C.hbars(dc, A.status.cats.filter(c => c.disc > 0)
+      .sort((a, b) => b.discRate - a.discRate)
+      .map(c => ({ label: c.cat, value: +(c.discRate * 100).toFixed(1),
+                   title: `${c.cat}: خصم ${fmt(c.disc)} من ${fmt(c.gross)}`,
+                   color: c.discRate > 0.15 ? 'var(--clay)' : 'var(--petrol)' })), { suffix: '%' });
+  }
   const sup = document.getElementById('cSup');
   if (A.supplies.length) {
     C.hbars(sup, A.supplies.map(s => ({ label: s.item, value: s.mentions })), { suffix: ' مرة' });
     sup.insertAdjacentHTML('beforeend',
       `<p class="note" style="margin-top:12px">المسجّل محاسبياً تحت «مستلزمات طبية»: <b class="num">${fmt(k.suppliesRecorded)}</b> جنيه فقط.</p>`);
   } else sup.innerHTML = '<p class="note">لا توجد ملاحظات استهلاك في هذه الفترة.</p>';
+}
+
+/* ============================================================
+   كتل تقرير بيان الحالة: إيراد الأطباء + الخصومات
+   ============================================================ */
+function statusBlocks(S) {
+  const doc = d => (d.isDept ? '' : 'د/ ') + esc(d.doctor) + (d.grade ? ` <span style="color:var(--muted);font-size:11px">(${esc(d.grade)})</span>` : '');
+  return `
+    <div class="card" style="border-top:3px solid var(--petrol)">
+      <div class="chead">
+        <div><h2>إيراد الأطباء والأقسام</h2>
+          <div class="note">من تقرير بيان الحالة المجمع · ${fmt(S.lines)} بند خدمة تحت
+            ${fmt(S.doctorCount)} طبيب و${fmt(S.depts.length)} قسم مساند
+            ${S.matched ? ` · طوبقت أتعاب ${fmt(S.matched)} منهم مع تقرير الخزينة` : ''}</div></div>
+        <div style="text-align:left">
+          <div style="font-size:12px;color:var(--muted)">الصافي المحصّل</div>
+          <div class="num" style="font-size:20px;font-weight:600">${fmt(S.net)}</div>
+        </div>
+      </div>
+      <div class="tscroll"><table>
+        <thead><tr>
+          <th>الطبيب / القسم</th><th>سعر القائمة</th><th>الخصم</th><th>%</th>
+          <th>الصافي</th><th>الوحدات</th><th>متوسط السعر</th>
+          ${S.matched ? '<th>الأتعاب</th><th>المتبقي</th><th>أتعاب/إيراد</th>' : ''}
+          <th style="width:16%">الحصة</th>
+        </tr></thead>
+        <tbody>${S.doctors.map(d => `
+          <tr>
+            <td>${doc(d)}${d.isDept ? ' <span class="badge pend">قسم</span>' : ''}</td>
+            <td class="n">${fmt(d.gross)}</td>
+            <td class="n">${fmt(d.disc)}</td>
+            <td class="n" style="color:${d.discRate > 0.15 ? 'var(--clay)' : 'inherit'}">${pc(d.discRate)}</td>
+            <td class="n">${fmt(d.net)}</td>
+            <td class="n">${fmt(d.qty)}</td>
+            <td class="n">${fmt(d.avgPrice)}</td>
+            ${S.matched ? `
+              <td class="n">${d.fees === null ? '—' : fmt(d.fees)}</td>
+              <td class="n" style="color:${d.margin !== null && d.margin < 0 ? 'var(--clay)' : 'inherit'}">${d.margin === null ? '—' : fmt(d.margin)}</td>
+              <td class="n" style="color:${d.feeRatio !== null && d.feeRatio > 0.55 ? 'var(--clay)' : 'inherit'}">${d.feeRatio === null ? '—' : pc(d.feeRatio)}</td>` : ''}
+            <td><div class="track" style="height:14px"><div class="fill" style="width:${(d.share / (S.doctors[0].share || 1) * 100).toFixed(1)}%"></div></div>
+              <span class="num" style="font-size:11px;color:var(--muted)">${pc(d.share)}</span></td>
+          </tr>`).join('')}</tbody>
+      </table></div>
+      ${S.periodMismatch ? `<div class="notice" style="margin-top:14px">
+        <h3>لم تُطابَق الأتعاب بالإيراد — الفترتان مختلفتان</h3>
+        <ul>
+          <li><span>—</span><div>تقرير بيان الحالة يغطي <b>${esc(S.periodMismatch.statusLabel)}</b> (${fmt(S.periodMismatch.statusDays)} يوم).</div></li>
+          <li><span>—</span><div>تقرير الخزينة يغطي <b>${esc(S.periodMismatch.treasuryLabel)}</b> (${fmt(S.periodMismatch.treasuryDays)} يوم).</div></li>
+          <li><span>—</span><div>مقارنة أتعاب شهر بإيراد عدة شهور تعطي نسباً مضلِّلة، لذلك أوقفناها. ارفع التقريرين لنفس الفترة لتظهر ربحية كل طبيب.</div></li>
+        </ul></div>`
+      : S.matched ? '' : `<p class="note" style="margin-top:12px">
+        لعرض ربحية كل طبيب، ارفع تقرير حركة الخزينة لنفس الفترة مع هذا الملف — عندها تُطابَق الأتعاب بالإيراد تلقائياً.</p>`}
+    </div>
+
+    <div class="grid32">
+      <div class="card">
+        <div class="chead"><div><h2>الخصومات</h2>
+          <div class="note">الفرق بين سعر القائمة والمحصّل فعلاً</div></div>
+          <div style="text-align:left">
+            <div style="font-size:12px;color:var(--muted)">إجمالي الخصم</div>
+            <div class="num" style="font-size:20px;font-weight:600;color:var(--clay)">${fmt(S.disc)}</div>
+            <div style="font-size:12px;color:var(--muted)">${pc(S.discRate)} من ${fmt(S.gross)}</div>
+          </div></div>
+        <div class="tscroll" style="max-height:300px;overflow-y:auto"><table>
+          <thead><tr><th>البند</th><th>سعر القائمة</th><th>الخصم</th><th>النسبة</th></tr></thead>
+          <tbody>${S.heavyDiscounts.map(x => `<tr>
+            <td>${esc(x.service)}<div style="font-size:11px;color:var(--muted)">${esc(x.isDept ? '' : 'د/ ')}${esc(x.doctor)}</div></td>
+            <td class="n">${fmt(x.gross)}</td><td class="n">${fmt(x.discount)}</td>
+            <td class="n" style="color:var(--clay)">${pc(x.rate)}</td></tr>`).join('')
+            || '<tr><td colspan="4" class="note">لا خصومات مؤثرة.</td></tr>'}</tbody>
+        </table></div>
+      </div>
+      <div class="card"><h2>الخصم حسب الفئة</h2>
+        <div class="note">أي تخصص يمنح أكبر خصم</div>
+        <div id="cDisc"></div></div>
+    </div>`;
 }
 
 function metricTable(A, E) {

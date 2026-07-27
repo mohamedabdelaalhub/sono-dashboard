@@ -220,6 +220,98 @@ function analyze(income, expense, meta) {
   };
 }
 
+/* ============================================================
+   تحليل «بيان الحالة»: إيراد كل طبيب + الخصومات
+   يُدمج مع تحليل الخزينة عندما يُرفع الملفان لنفس الفترة.
+   ============================================================ */
+function analyzeStatus(rows, doctorFees, periods) {
+  if (!rows || !rows.length) return null;
+
+  /* لا تُطابَق الأتعاب بالإيراد إلا إذا غطّى التقريران الفترة نفسها تقريباً.
+     غير ذلك تكون النسب مضلِّلة (أتعاب شهر مقابل إيراد نصف سنة). */
+  let mismatch = null;
+  if (periods && periods.status && periods.status.from && periods.status.to &&
+      periods.treasury && periods.treasury.from && periods.treasury.to) {
+    const days = (a, b) => Math.round((b - a) / 86400000) + 1;
+    const sDays = days(periods.status.from, periods.status.to);
+    const tDays = days(periods.treasury.from, periods.treasury.to);
+    const ratio = Math.max(sDays, tDays) / Math.max(Math.min(sDays, tDays), 1);
+    if (ratio > 1.3) mismatch = {
+      statusDays: sDays, treasuryDays: tDays,
+      statusLabel  : fmtDateAr(periods.status.from) + ' → ' + fmtDateAr(periods.status.to),
+      treasuryLabel: fmtDateAr(periods.treasury.from) + ' → ' + fmtDateAr(periods.treasury.to)
+    };
+  }
+  if (mismatch) doctorFees = null;   /* أوقف المطابقة */
+  const net   = sum(rows, r => r.net);
+  const gross = sum(rows, r => r.gross);
+  const disc  = sum(rows, r => r.discount);
+  const qty   = sum(rows, r => r.qty);
+
+  const feeMap = new Map();
+  (doctorFees || []).forEach(d => feeMap.set(P.normAr(d.doctor), d.fees));
+
+  const dm = new Map();
+  rows.forEach(r => {
+    const k = r.doctor || 'غير محدد';
+    const o = dm.get(k) || { doctor: k, grade: r.grade, isDept: r.isDept,
+                             net: 0, gross: 0, disc: 0, qty: 0, services: 0 };
+    o.net += r.net; o.gross += r.gross; o.disc += r.discount; o.qty += r.qty; o.services++;
+    dm.set(k, o);
+  });
+  const doctors = [...dm.values()].map(d => {
+    const fees = feeMap.get(P.normAr(d.doctor));
+    return {
+      ...d,
+      share    : net ? d.net / net : 0,
+      discRate : d.gross ? d.disc / d.gross : 0,
+      avgPrice : d.qty ? d.net / d.qty : 0,
+      fees     : fees === undefined ? null : fees,
+      margin   : fees === undefined ? null : d.net - fees,
+      feeRatio : fees === undefined || !d.net ? null : fees / d.net
+    };
+  }).sort((a, b) => b.net - a.net);
+
+  const services = groupSum(rows, r => r.service, r => r.net).map(s => ({
+    service : s.key,
+    net     : s.total,
+    gross   : sum(s.items, x => x.gross),
+    disc    : sum(s.items, x => x.discount),
+    qty     : sum(s.items, x => x.qty),
+    cat     : s.items[0].cat,
+    doctors : uniq(s.items.map(x => x.doctor)).length
+  })).map(s => ({ ...s, discRate: s.gross ? s.disc / s.gross : 0,
+                  avgPrice: s.qty ? s.net / s.qty : 0 }));
+
+  const cats = groupSum(rows, r => r.cat, r => r.net).map(c => ({
+    cat: c.key, net: c.total, gross: sum(c.items, x => x.gross),
+    disc: sum(c.items, x => x.discount), qty: sum(c.items, x => x.qty),
+    pct: net ? c.total / net : 0
+  })).map(c => ({ ...c, discRate: c.gross ? c.disc / c.gross : 0 }));
+
+  /* أعلى الخصومات — بنود ذات وزن مالي معتبر فقط */
+  const heavy = rows.filter(r => r.gross >= gross * 0.004 && r.discount > 0)
+    .map(r => ({ ...r, rate: r.gross ? r.discount / r.gross : 0 }))
+    .sort((a, b) => b.rate - a.rate || b.discount - a.discount).slice(0, 15);
+
+  const depts = doctors.filter(d => d.isDept);
+  const realDocs = doctors.filter(d => !d.isDept);
+
+  return {
+    net, gross, disc, qty,
+    discRate   : gross ? disc / gross : 0,
+    lines      : rows.length,
+    doctors, realDocs, depts, services, cats, heavyDiscounts: heavy,
+    doctorCount: realDocs.length,
+    topDoctorShare: doctors.length ? doctors[0].share : 0,
+    avgPrice   : qty ? net / qty : 0,
+    /* هل أمكن ربط الأتعاب بالإيراد؟ */
+    matched    : doctors.filter(d => d.fees !== null).length,
+    withMargin : doctors.filter(d => d.margin !== null).sort((a, b) => a.margin - b.margin),
+    periodMismatch: mismatch
+  };
+}
+
 /* ---------- المقارنة بين فترتين ---------- */
 function compare(cur, prev) {
   if (!prev) return null;
@@ -243,6 +335,6 @@ function compare(cur, prev) {
   return out;
 }
 
-root.SonoAnalytics = { analyze, compare, periodKey, periodLabel, listPeriods,
+root.SonoAnalytics = { analyze, analyzeStatus, compare, periodKey, periodLabel, listPeriods,
                        DOW_AR, MON_AR, fmtDateAr, dparse, addDays, groupSum, sum, uniq };
 })(window);

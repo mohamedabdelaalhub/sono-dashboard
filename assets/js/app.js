@@ -10,7 +10,7 @@ const P = root.SonoParser, AN = root.SonoAnalytics, RU = root.SonoRules,
 
 const $ = id => document.getElementById(id);
 const state = {
-  files: [], income: [], expense: [],
+  files: [], income: [], expense: [], status: [],
   A: null, E: null, cmp: null, tab: 'sum',
   ctx: { clinic: CFG.clinicName || '', branch: CFG.branchName || '' }
 };
@@ -183,7 +183,7 @@ function initUpload() {
 }
 
 function clearAll() {
-  state.files = []; state.income = []; state.expense = []; state.A = null;
+  state.files = []; state.income = []; state.expense = []; state.status = []; state.A = null;
   renderChips(); $('toolbar').classList.add('hide'); $('tabs').classList.add('hide');
   document.querySelectorAll('.tabpane').forEach(p => { p.classList.add('hide'); p.innerHTML = ''; });
   $('welcome').classList.remove('hide');
@@ -200,13 +200,27 @@ async function handleFiles(list) {
       if (state.files.some(x => x.name === f.name)) continue;
       const buf = await f.arrayBuffer();
       const wb = XLSX.read(buf, { type: 'array', cellDates: true, raw: true });
+
+      /* ١) هل هو «تقرير بيان الحالة المجمع»؟ */
+      const st = root.SonoStatusParser ? root.SonoStatusParser.parse(wb, f.name) : null;
+      if (st && st.rows.length) {
+        st.warnings.forEach(w => warnings.push(f.name + ': ' + w));
+        state.files.push({ name: f.name, kind: 'status', income: [], expense: [],
+                           status: st.rows, period: st.period });
+        continue;
+      }
+
+      /* ٢) وإلا فهو تقرير حركة خزينة */
       const r = P.parseWorkbook(wb, f.name);
       r.warnings.forEach(w => warnings.push(f.name + ': ' + w));
       if (!r.income.length && !r.expense.length) {
-        warnings.push(`${f.name}: لم يُقرأ منه أي سطر — تأكد أن الشيت يحتوي أعمدة «التاريخ» و«السعر» و«البيان».`);
+        warnings.push(`${f.name}: لم يُتعرَّف على شكل هذا الملف.\n` +
+          '   • تقرير الخزينة يحتاج أعمدة: التاريخ · السعر · البيان\n' +
+          '   • تقرير بيان الحالة يحتاج أعمدة: الخدمة · الكمية · الصافي أو الخصم\n' +
+          '   تأكد أن أسماء الأعمدة في صف واحد وبلا صفوف فارغة بينها.');
         continue;
       }
-      state.files.push({ name: f.name, income: r.income, expense: r.expense });
+      state.files.push({ name: f.name, kind: 'treasury', income: r.income, expense: r.expense, status: [] });
     }
     rebuild();
     if (warnings.length) alert('ملاحظات القراءة:\n\n' + warnings.join('\n'));
@@ -217,7 +231,7 @@ async function handleFiles(list) {
 
 function renderChips() {
   $('fileChips').innerHTML = state.files.map((f, i) => `
-    <span class="chip">${f.name} · ${f.income.length + f.expense.length} سطر
+    <span class="chip">${f.name} · ${f.kind === 'status' ? 'بيان حالة' : 'خزينة'} · ${(f.income.length + f.expense.length) || (f.status || []).length} سطر
       <button data-i="${i}" title="إزالة">×</button></span>`).join('');
   $('fileChips').querySelectorAll('button').forEach(b => b.onclick = () => {
     state.files.splice(+b.dataset.i, 1); rebuild();
@@ -225,18 +239,25 @@ function renderChips() {
 }
 
 function mergeAll() {
-  const seenI = new Set(), seenE = new Set(), inc = [], exp = [];
+  const seenI = new Set(), seenE = new Set(), seenS = new Set();
+  const inc = [], exp = [], sta = [];
   state.files.forEach(f => {
-    f.income.forEach(r => {
+    (f.income || []).forEach(r => {
       const k = [r.date, r.amount, r.receipt, r.fileNo, r.services.join('|')].join('¦');
       if (seenI.has(k)) return; seenI.add(k); inc.push(r);
     });
-    f.expense.forEach(r => {
+    (f.expense || []).forEach(r => {
       const k = [r.date, r.amount, r.bayan, r.voucher].join('¦');
       if (seenE.has(k)) return; seenE.add(k); exp.push(r);
     });
+    (f.status || []).forEach(r => {
+      const k = [r.doctor, r.service, r.qty, r.net, r.gross].join('¦');
+      if (seenS.has(k)) return; seenS.add(k); sta.push(r);
+    });
   });
-  state.income = inc; state.expense = exp;
+  state.income = inc; state.expense = exp; state.status = sta;
+  /* فترة تقرير بيان الحالة — يُستخدم عند غياب بيانات الخزينة */
+  state.statusPeriod = (state.files.find(f => f.period && f.period.to) || {}).period || null;
 }
 
 /* ============================================================
@@ -289,12 +310,23 @@ function currentSlice() {
 }
 
 function applyPeriod() {
-  if (!state.income.length && !state.expense.length) return;
+  if (!state.income.length && !state.expense.length && !(state.status || []).length) return;
   busy(true, 'جارٍ التحليل…');
   setTimeout(() => {
     try {
       const s = currentSlice();
       state.A = AN.analyze(s.cur.income, s.cur.expense, { label: s.label });
+      /* دمج تقرير بيان الحالة — يُنسب لكل الفترة المرفوعة */
+      state.A.status = AN.analyzeStatus(state.status, state.A.doctors, {
+        status  : state.statusPeriod,
+        treasury: { from: state.A.meta.from, to: state.A.meta.to }
+      });
+      if (state.A.status && !state.A.meta.from && state.statusPeriod) {
+        state.A.meta.from = state.statusPeriod.from || null;
+        state.A.meta.to   = state.statusPeriod.to || null;
+        if (state.A.meta.from && state.A.meta.to)
+          state.A.meta.rangeLabel = AN.fmtDateAr(state.A.meta.from) + ' → ' + AN.fmtDateAr(state.A.meta.to);
+      }
       const prevA = s.prev ? AN.analyze(s.prev.income, s.prev.expense, {}) : null;
       state.cmp = AN.compare(state.A, prevA);
       state.E = RU.evaluate(state.A, state.cmp);

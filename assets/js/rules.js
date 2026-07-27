@@ -401,6 +401,95 @@ const RULES = [
     };
   }
 },
+/* ---------- قواعد تعمل فقط عند رفع تقرير بيان الحالة ---------- */
+{
+  id: 'discountLoad', area: 'التسعير والخصومات',
+  test(c) {
+    const S = c.S; if (!S) return false;
+    if (S.discRate < 0.05) return false;
+    return {
+      sev: S.discRate > 0.15 ? 'high' : S.discRate > 0.10 ? 'medium' : 'low',
+      title  : 'الخصومات تلتهم شريحة من الإيراد',
+      finding: `إجمالي الخصومات ${cur(S.disc)} من سعر قائمة ${cur(S.gross)} — أي ${pc(S.discRate)}. ` +
+               `الصافي المحصّل ${cur(S.net)} على ${eg(S.qty)} وحدة خدمة.`,
+      impact : S.disc * 0.4,
+      impactNote: `استرداد 40% فقط من هذه الخصومات يضيف ${cur(S.disc * 0.4)}.`,
+      metric : 'الخصم ÷ سعر القائمة', value: pc(S.discRate), target: '≤ 5%'
+    };
+  }
+},
+{
+  id: 'discountOutliers', area: 'التسعير والخصومات',
+  test(c) {
+    const S = c.S; if (!S || !S.heavyDiscounts.length) return false;
+    const bad = S.heavyDiscounts.filter(x => x.rate >= 0.25);
+    if (!bad.length) return false;
+    return {
+      sev: bad.length > 3 ? 'high' : 'medium',
+      title  : 'بنود بخصومات استثنائية تحتاج مراجعة',
+      finding: `${cnt(bad.length, 'بند واحد', 'بندان', 'بنود', 'بنداً')} بخصم 25% فأكثر: ` +
+               bad.slice(0, 4).map(x => `«${x.service}» ${pc(x.rate)} (${cur(x.discount)})`).join('، ') + '.',
+      impact : bad.reduce((s, x) => s + x.discount, 0),
+      metric : 'أعلى خصم على بند', value: pc(bad[0].rate), target: '≤ 25%'
+    };
+  }
+},
+{
+  id: 'doctorDiscount', area: 'التسعير والخصومات',
+  test(c) {
+    const S = c.S; if (!S) return false;
+    const d = S.doctors.filter(x => x.gross > S.gross * 0.03)
+      .sort((a, b) => b.discRate - a.discRate)[0];
+    if (!d || d.discRate < 0.12) return false;
+    return {
+      sev: d.discRate > 0.20 ? 'medium' : 'low',
+      title  : 'تفاوت كبير في سياسة الخصم بين الأطباء',
+      finding: `${d.isDept ? '' : 'د/ '}${d.doctor} يمنح ${pc(d.discRate)} خصماً (${cur(d.disc)}) ` +
+               `مقابل متوسط عام ${pc(S.discRate)}. ` +
+               `أقل الممنوحين: ` + S.doctors.filter(x => x.gross > S.gross * 0.03)
+                 .sort((a, b) => a.discRate - b.discRate).slice(0, 2)
+                 .map(x => `${x.doctor} ${pc(x.discRate)}`).join('، ') + '.',
+      impact : Math.max(d.disc - d.gross * S.discRate, 0),
+      metric : 'أعلى نسبة خصم لطبيب', value: pc(d.discRate), target: '≤ ' + pc(Math.max(S.discRate, 0.1))
+    };
+  }
+},
+{
+  id: 'doctorMargin', area: 'ربحية الأطباء',
+  test(c) {
+    const S = c.S; if (!S || !S.matched) return false;
+    const losers = S.withMargin.filter(d => d.margin !== null && d.feeRatio !== null && d.feeRatio > 0.55);
+    if (!losers.length) return false;
+    const w = losers[0];
+    return {
+      sev: losers.some(d => d.margin < 0) ? 'high' : 'medium',
+      title  : 'أطباء أتعابهم تلتهم معظم إيرادهم',
+      finding: losers.slice(0, 3).map(d =>
+        `${d.isDept ? '' : 'د/ '}${d.doctor}: إيراد ${cur(d.net)} وأتعاب ${cur(d.fees)} ` +
+        `(${pc(d.feeRatio)}) فيتبقى ${cur(d.margin)}`).join(' · ') +
+        `. تم مطابقة ${cnt(S.matched, 'طبيب واحد', 'طبيبين', 'أطباء', 'طبيباً')} بين التقريرين.`,
+      impact : losers.reduce((s, d) => s + Math.max(d.fees - d.net * 0.5, 0), 0),
+      impactNote: 'إعادة التفاوض إلى 50% من إيراد الطبيب تحرّر هذا المبلغ.',
+      metric : 'أعلى نسبة أتعاب إلى إيراد الطبيب', value: pc(w.feeRatio), target: '≤ 50%'
+    };
+  }
+},
+{
+  id: 'deptShare', area: 'ربحية الأطباء',
+  test(c) {
+    const S = c.S; if (!S || !S.depts.length) return false;
+    const share = S.depts.reduce((s, d) => s + d.share, 0);
+    if (share < 0.15) return false;
+    return {
+      sev: 'low',
+      title  : 'الأقسام المساندة تمثل شريحة مؤثرة من الإيراد',
+      finding: S.depts.map(d => `${d.doctor} ${cur(d.net)} (${pc(d.share)})`).join('، ') +
+               `. مجتمعة ${pc(share)} من الإيراد — لها تكلفة تشغيل مستقلة يجب قياسها.`,
+      impact : 0,
+      metric : 'حصة الأقسام المساندة', value: pc(share), target: 'تُقاس ربحيتها منفصلة'
+    };
+  }
+},
 {
   id: 'costSpike', area: 'هيكل التكلفة',
   test(c) {
@@ -603,6 +692,50 @@ const ADVICE = {
       `راجع غياب أي طبيب أو توقف خدمة خلال الفترة.`
     ]
   }),
+  discountLoad: c => ({
+    title: 'وضع سياسة خصم مكتوبة بسقوف واضحة',
+    steps: [
+      `الخصومات ${cur(c.S.disc)} = ${pc(c.S.discRate)} من سعر القائمة. استهدف 5% خلال ربع سنة.`,
+      `حدّد سقفاً لكل مستوى: استقبال 5%، مدير 10%، ما فوق ذلك بموافقة مكتوبة منك.`,
+      `أي خصم يُسجَّل بسببه في النظام — بدون سبب لا يُقبل الخصم.`,
+      `راجع أعلى الفئات خصماً: ` + c.S.cats.slice().sort((a, b) => b.discRate - a.discRate).slice(0, 3)
+        .map(x => `${x.cat} ${pc(x.discRate)}`).join('، ') + '.'
+    ]
+  }),
+  discountOutliers: c => ({
+    title: 'مراجعة البنود ذات الخصم الاستثنائي بنداً بنداً',
+    steps: [
+      `أعلى البنود: ` + c.S.heavyDiscounts.slice(0, 5)
+        .map(x => `«${x.service}» ${pc(x.rate)}`).join('، ') + '.',
+      `قرّر لكل بند: إما أن السعر المعلن مبالغ فيه فيُخفَّض رسمياً، أو أن الخصم غير مبرَّر فيُوقَف.`,
+      `الخصم الدائم على بند معناه أن قائمة الأسعار غير واقعية — عالج السبب لا العرض.`
+    ]
+  }),
+  doctorDiscount: c => ({
+    title: 'توحيد سياسة الخصم بين الأطباء',
+    steps: [
+      `الفارق بين أعلى وأدنى طبيب في منح الخصم كبير — وحّد السقف للجميع.`,
+      `اربط صلاحية الخصم بالنظام لا بالاجتهاد الشخصي.`
+    ]
+  }),
+  doctorMargin: c => ({
+    title: 'إعادة التفاوض على أتعاب الأطباء بناءً على إيرادهم الفعلي',
+    steps: [
+      `الآن أصبح إيراد كل طبيب معلوماً بعد رفع تقرير بيان الحالة — استخدمه في التفاوض.`,
+      `المستهدف ألا تتجاوز أتعاب الطبيب 50% من إيراده المحصّل.`,
+      `أعلى النسب: ` + c.S.withMargin.filter(d => d.feeRatio !== null)
+        .sort((a, b) => b.feeRatio - a.feeRatio).slice(0, 3)
+        .map(d => `${d.doctor} ${pc(d.feeRatio)}`).join('، ') + '.',
+      `احسب أيضاً تكلفة المستهلكات والوقت العيادي قبل اعتماد أي نسبة جديدة.`
+    ]
+  }),
+  deptShare: c => ({
+    title: 'قياس ربحية الأقسام المساندة منفصلة',
+    steps: [
+      `المعمل والأشعة والتمريض لها تكلفة كواشف وأجهزة وإهلاك — افصل حساباتها.`,
+      `قارن سعر التحليل الداخلي بتكلفة إرساله لمعمل خارجي قبل أي استثمار جديد.`
+    ]
+  }),
   costSpike: c => ({
     title: 'تفسير قفزة المصروف واعتمادها أو ردّها',
     steps: [
@@ -691,6 +824,23 @@ const PLAN = {
   costSpike: c => ([
     { t: 'مراجعة مستندات البند المرتفع واعتماده أو ردّه', own: 'المحاسب', wk: '١', kpi: 'البند المرتفع', tgt: 'مُبرَّر مستندياً', pr: 1 }
   ]),
+  discountLoad: c => ([
+    { t: 'إصدار سياسة خصم مكتوبة بسقوف لكل مستوى وظيفي', own: 'مدير المركز', wk: '١–٢', kpi: 'الخصم ÷ سعر القائمة', tgt: '≤ 5%', pr: 1 },
+    { t: 'إلزام تسجيل سبب الخصم في النظام ومنع الحفظ بدونه', own: 'مطوّر النظام', wk: '٢–٣', kpi: 'خصومات بلا سبب', tgt: '0', pr: 1 }
+  ]),
+  discountOutliers: c => ([
+    { t: 'مراجعة البنود ذات الخصم فوق 25% وتصحيح سعرها أو إيقاف خصمها', own: 'المدير المالي', wk: '١–٢', kpi: 'بنود بخصم > 25%', tgt: '0', pr: 1 }
+  ]),
+  doctorDiscount: c => ([
+    { t: 'توحيد سقف الخصم بين كل الأطباء وربطه بالنظام', own: 'مدير المركز', wk: '٢–٣', kpi: 'تفاوت نسب الخصم', tgt: '≤ 5 نقاط', pr: 2 }
+  ]),
+  doctorMargin: c => ([
+    { t: 'إعادة التفاوض على أتعاب الأطباء الأعلى نسبة إلى إيرادهم', own: 'المدير المالي', wk: '٢–٦', kpi: 'أتعاب الطبيب ÷ إيراده', tgt: '≤ 50%', pr: 1 },
+    { t: 'إصدار تقرير ربحية شهري لكل طبيب من التقريرين معاً', own: 'المحاسب', wk: '٤', kpi: 'تقرير صادر', tgt: 'شهرياً', pr: 2 }
+  ]),
+  deptShare: c => ([
+    { t: 'فصل حسابات المعمل والأشعة والتمريض كمراكز تكلفة مستقلة', own: 'المحاسب', wk: '٤–٨', kpi: 'ربحية كل قسم', tgt: 'معلومة', pr: 3 }
+  ]),
   ticket: c => ([
     { t: 'تدريب الاستقبال على عرض الخدمات المكمّلة', own: 'مشرف الاستقبال', wk: '٢–٣', kpi: 'متوسط الإيصال', tgt: 'استعادة المستوى السابق', pr: 2 }
   ]),
@@ -722,6 +872,7 @@ function evaluate(A, cmp) {
 
   const ctx = {
     A, k: A.kpi, B, cmp, span: A.meta.spanDays,
+    S: A.status || null,              /* تحليل بيان الحالة إن وُجد */
     cat: name => (A.expCats.find(x => x.cat === name) || { total: 0 }).total
   };
 
