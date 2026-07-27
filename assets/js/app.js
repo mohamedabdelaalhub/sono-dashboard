@@ -11,7 +11,7 @@ const P = root.SonoParser, AN = root.SonoAnalytics, RU = root.SonoRules,
 const $ = id => document.getElementById(id);
 const state = {
   files: [], income: [], expense: [], status: [],
-  A: null, E: null, cmp: null, tab: 'sum',
+  A: null, E: null, cmp: null, C: null, cSources: null, tab: 'sum',
   ctx: { clinic: CFG.clinicName || '', branch: CFG.branchName || '' }
 };
 
@@ -104,6 +104,12 @@ function initLanding() {
   });
 
   $('btnOut').addEventListener('click', async () => { await AU.signOut(); location.reload(); });
+
+  /* قائمة المستخدم المنسدلة */
+  const um = $('userMenu');
+  $('btnUser').addEventListener('click', e => { e.stopPropagation(); um.classList.toggle('hide'); });
+  um.addEventListener('click', () => um.classList.add('hide'));
+  document.addEventListener('click', () => um.classList.add('hide'));
 }
 function showErr(m) { const e = $('authErr'); e.textContent = m; e.classList.remove('hide'); $('authOk').classList.add('hide'); }
 function showOk(m)  { const e = $('authOk');  e.textContent = m; e.classList.remove('hide'); $('authErr').classList.add('hide'); }
@@ -142,7 +148,11 @@ async function enterApp() {
   busy(true, 'جارٍ تحميل الإعدادات…');
   try { await ST.load(AU.client(), u, RO.isSuper(u)); } catch (e) {} finally { busy(false); }
 
-  $('who').textContent = `${u.name} · ${u.role}`;
+  $('who').textContent = u.name;
+  $('uav').textContent = (u.name || '؟').trim().charAt(0);
+  $('uName2').textContent = u.name;
+  $('uRole2').textContent = u.role;
+  $('uMail2').textContent = u.email || '';
   $('landing').classList.add('hide');
   $('app').classList.remove('hide');
   $('pgFoot').innerHTML =
@@ -184,24 +194,46 @@ function initUpload() {
 }
 
 function clearAll() {
-  state.files = []; state.income = []; state.expense = []; state.status = []; state.A = null;
+  state.files = []; state.income = []; state.expense = []; state.status = [];
+  state.A = null; state.C = null; state.cSources = null;
+  $('tabCmp').classList.add('hide');
   renderChips(); $('toolbar').classList.add('hide');
   document.querySelectorAll('.tabpane').forEach(p => { p.classList.add('hide'); p.innerHTML = ''; });
   Object.keys(RENDERED).forEach(k => delete RENDERED[k]);
   $('welcome').classList.remove('hide');
   markTabs('sum'); state.tab = 'sum';
-  ['btnXlsx', 'btnPdf', 'btnPrint', 'btnAi'].forEach(b => $(b).disabled = true);
+  ['btnXlsx', 'btnPdf', 'btnPrint'].forEach(b => $(b).disabled = true);
 }
 
 async function handleFiles(list) {
-  const arr = [...list].filter(f => /\.(xlsx|xls|csv)$/i.test(f.name));
-  if (!arr.length) { alert('من فضلك اختر ملف ‎.xlsx‎ أو ‎.xls‎ أو ‎.csv‎'); return; }
+  const arr = [...list].filter(f => /\.(xlsx|xls|csv|pdf)$/i.test(f.name));
+  if (!arr.length) { alert('من فضلك اختر ملف ‎.xlsx‎ أو ‎.xls‎ أو ‎.csv‎ أو ‎.pdf‎'); return; }
   busy(true, 'جارٍ قراءة الملفات…');
   const warnings = [];
   try {
     for (const f of arr) {
       if (state.files.some(x => x.name === f.name)) continue;
       const buf = await f.arrayBuffer();
+
+      /* ---------- ملفات PDF ---------- */
+      if (/\.pdf$/i.test(f.name)) {
+        busy(true, `جارٍ قراءة ${f.name}…`);
+        try {
+          const r = await root.SonoPdfParser.parse(buf, f.name);
+          (r.warnings || []).forEach(w => warnings.push(f.name + ': ' + w));
+          if (r.kind === 'status') {
+            state.files.push({ name: f.name, kind: 'status', src: 'pdf', income: [], expense: [],
+                               status: r.status, period: r.period });
+          } else if (r.kind === 'treasury') {
+            state.files.push({ name: f.name, kind: 'treasury', src: 'pdf',
+                               income: r.income, expense: r.expense, status: [] });
+          } else {
+            warnings.push(`${f.name}: قُرئ النص من ${r.numPages} صفحة لكن لم يُتعرَّف على شكل التقرير.\n` +
+              '   جداول PDF غالباً تفقد ترتيب أعمدتها. الأفضل تصدير نفس التقرير Excel من نظام المركز.');
+          }
+        } catch (e) { warnings.push(e.message); }
+        continue;
+      }
       const wb = XLSX.read(buf, { type: 'array', cellDates: true, raw: true });
 
       /* ١) هل هو «تقرير بيان الحالة المجمع»؟ */
@@ -234,7 +266,7 @@ async function handleFiles(list) {
 
 function renderChips() {
   $('fileChips').innerHTML = state.files.map((f, i) => `
-    <span class="chip">${f.name} · ${f.kind === 'status' ? 'بيان حالة' : 'خزينة'} · ${(f.income.length + f.expense.length) || (f.status || []).length} سطر
+    <span class="chip">${f.name} · ${f.kind === 'status' ? 'بيان حالة' : 'خزينة'}${f.src === 'pdf' ? ' · PDF' : ''} · ${(f.income.length + f.expense.length) || (f.status || []).length} سطر
       <button data-i="${i}" title="إزالة">×</button></span>`).join('');
   $('fileChips').querySelectorAll('button').forEach(b => b.onclick = () => {
     state.files.splice(+b.dataset.i, 1); rebuild();
@@ -267,6 +299,10 @@ function mergeAll() {
    الفلاتر
    ============================================================ */
 function initFilters() {
+  $('btnCmpPeriods').addEventListener('click', () => {
+    try { compareUploadedPeriods(); }
+    catch (e) { alert(e.message || e); }
+  });
   $('gran').addEventListener('change', () => { buildPeriods(); applyPeriod(); });
   $('period').addEventListener('change', applyPeriod);
   $('dFrom').addEventListener('change', applyPeriod);
@@ -317,6 +353,7 @@ function applyPeriod() {
   busy(true, 'جارٍ التحليل…');
   setTimeout(() => {
     try {
+      state.C = null; state.cSources = null;
       const s = currentSlice();
       state.A = AN.analyze(s.cur.income, s.cur.expense, { label: s.label });
       /* دمج تقرير بيان الحالة — يُنسب لكل الفترة المرفوعة */
@@ -340,7 +377,6 @@ function applyPeriod() {
       $('cPlan').textContent = state.E.plan.length;
       const u = AU.user();
       ['btnXlsx', 'btnPdf', 'btnPrint'].forEach(b => $(b).disabled = !RO.can(u, 'export'));
-      $('btnAi').disabled = !RO.can(u, 'useAi');
       renderTab(state.tab, true);
     } catch (e) {
       console.error(e);
@@ -367,7 +403,7 @@ function rebuild() {
    التابات
    ============================================================ */
 const PANES = { sum: 'pane-sum', kpi: 'pane-kpi', risk: 'pane-risk', rec: 'pane-rec',
-                plan: 'pane-plan', ai: 'pane-ai', arch: 'pane-arch', data: 'pane-data' };
+                plan: 'pane-plan', ai: 'pane-ai', cmp: 'pane-cmp', arch: 'pane-arch', data: 'pane-data' };
 const RENDERED = {};
 
 function initTabs() {
@@ -377,6 +413,13 @@ function initTabs() {
 
 function renderTab(t, force) {
   const u = AU.user();
+  if (t === 'cmp') {
+    state.tab = t; markTabs(t); showPane(t);
+    $('welcome').classList.add('hide');
+    if (!state.C) $(PANES.cmp).innerHTML =
+      '<div class="empty"><b>لا يوجد تقرير مقارنة معروض</b>افتح تاب «الأرشيف» واختر تقريرين أو أكثر ثم اضغط «مقارنة المحدَّد».</div>';
+    return;
+  }
   if (t === 'arch') {
     state.tab = t; markTabs(t); showPane(t);
     $('welcome').classList.add('hide');
@@ -403,18 +446,79 @@ function showPane(t) {
   Object.keys(PANES).forEach(k => $(PANES[k]).classList.toggle('hide', k !== t));
 }
 
+/* ---------- عرض تقرير مقارنة ---------- */
+function showComparison(C, sources, title) {
+  state.C = C; state.cSources = sources || [];
+  state.A = null; state.E = null; state.cmp = null;
+  const nm = title || ('مقارنة ' + C.periods.map(p => p.label).join(' مقابل '));
+  $('welcome').classList.add('hide');
+  $('toolbar').classList.add('hide');
+  $('tabs').classList.remove('hide');
+  $('cmpLbl').textContent = nm;
+  $('cRisk').textContent = C.risks.filter(r => r.persistent || r.emerged).length;
+  $('cRec').textContent = '—'; $('cPlan').textContent = '—';
+  $('btnXlsx').disabled = true;
+  ['btnPdf', 'btnPrint'].forEach(b => $(b).disabled = !RO.can(AU.user(), 'export'));
+  Object.keys(RENDERED).forEach(k => delete RENDERED[k]);
+  markTabs('cmp'); showPane('cmp');
+  RD.renderComparison($(PANES.cmp), C, nm, RO.can(AU.user(), 'upload')
+    ? async t => { await root.SonoArchive.saveComparison(C, state.cSources, t || nm); }
+    : null);
+  RENDERED.cmp = 1; state.tab = 'cmp';
+  $('tabCmp').classList.remove('hide');
+}
+
+/* مقارنة الفترات داخل الملفات المرفوعة حالياً */
+function compareUploadedPeriods() {
+  const g = $('gran').value;
+  if (g === 'all' || g === 'custom')
+    throw new Error('اختر تقسيماً زمنياً (أسبوعي/شهري/ربع سنوي/سنوي) أولاً حتى تتكوّن فترات للمقارنة.');
+  const all = state.income.concat(state.expense);
+  const ps = AN.listPeriods(all, g);
+  if (ps.length < 2)
+    throw new Error(`الملفات المرفوعة تغطي فترة واحدة فقط بهذا التقسيم. ارفع ملفات فترات أخرى، أو غيّر التقسيم.`);
+  const inK = k => r => AN.periodKey(r.date, g) === k;
+  const loaded = ps.map(p => {
+    const A = AN.analyze(state.income.filter(inK(p.key)), state.expense.filter(inK(p.key)), {});
+    A.status = null;
+    return { label: p.label, A, E: RU.evaluate(A, null) };
+  });
+  showComparison(root.SonoCompare.build(loaded), loaded.map(l => l.label));
+}
+
 /* ---------- الأرشيف ---------- */
 function archiveHandlers() {
   return {
     save: async title => {
+      if (state.C) {
+        await root.SonoArchive.saveComparison(state.C, state.cSources || [], title);
+        return;
+      }
       if (!state.A) throw new Error('لا يوجد تقرير معروض للحفظ.');
       await root.SonoArchive.save(state.A, state.E, state.cmp,
         state.files.map(f => f.name), title);
+    },
+
+    compare: async ids => {
+      if (!ids || ids.length < 2) throw new Error('اختر تقريرين على الأقل.');
+      busy(true, 'جارٍ تحميل التقارير…');
+      try {
+        const loaded = [];
+        for (const id of ids) {
+          const r = await root.SonoArchive.load(id);
+          if (r.comparison) throw new Error('لا يمكن مقارنة تقرير مقارنة — اختر تقارير فترات.');
+          loaded.push({ label: r.title, A: r.A, E: r.E });
+        }
+        busy(true, 'جارٍ بناء المقارنة…');
+        showComparison(root.SonoCompare.build(loaded), loaded.map(l => l.label));
+      } finally { busy(false); }
     },
     open: async id => {
       busy(true, 'جارٍ فتح التقرير…');
       try {
         const r = await root.SonoArchive.load(id);
+        if (r.comparison) { showComparison(r.comparison, r.sources, r.title); return; }
+        state.C = null; state.cSources = null;
         state.A = r.A; state.E = r.E; state.cmp = r.cmp;
         state.archived = r.title;
         $('cRisk').textContent = r.E.risks.length;
@@ -425,7 +529,6 @@ function archiveHandlers() {
         $('tabs').classList.remove('hide');
         $('toolbar').classList.add('hide');
         ['btnXlsx', 'btnPdf', 'btnPrint'].forEach(b => $(b).disabled = !RO.can(AU.user(), 'export'));
-        $('btnAi').disabled = !RO.can(AU.user(), 'useAi');
         Object.keys(RENDERED).forEach(k => delete RENDERED[k]);
         renderTab('sum');
       } catch (e) { alert('تعذّر فتح التقرير: ' + (e.message || e)); }
@@ -439,7 +542,7 @@ function draw(t, el) {
      kpi : () => RD.renderKpi(el, state.A, state.E, state.cmp),
      risk: () => RD.renderRisks(el, state.A, state.E),
      rec : () => RD.renderRecos(el, state.A, state.E),
-     plan: () => RD.renderPlan(el, state.A, state.E),
+     plan: () => RD.renderPlan(el, state.A, state.E, state.ctx),
      ai  : () => RD.renderAiTab(el, state),
      arch: () => RD.renderArchive(el, state, archiveHandlers()),
      data: () => RD.renderData(el, state.A, state.E) })[t]();
@@ -460,12 +563,18 @@ function initExport() {
     }, 30);
   });
 
-  $('btnPdf').addEventListener('click', async () => {
+  /* ---------- قائمة تصدير PDF ---------- */
+  const menu = $('pdfMenu');
+  $('btnPdf').addEventListener('click', e => {
     if (!state.A || !gate('export')) return;
-    busy(true, 'جارٍ بناء ملف PDF…');
-    try { await EX.toPdf(state.A, state.E, state.ctx, m => $('busyMsg').textContent = m); }
-    catch (e) { console.error(e); alert('تعذّر إنشاء ملف PDF: ' + (e.message || e)); }
-    finally { busy(false); }
+    e.stopPropagation();
+    menu.classList.toggle('hide');
+  });
+  document.addEventListener('click', () => menu.classList.add('hide'));
+  menu.addEventListener('click', e => e.stopPropagation());
+  menu.querySelectorAll('button').forEach(b => b.onclick = async () => {
+    menu.classList.add('hide');
+    await exportPdf(b.dataset.scope);
   });
 
   $('btnPrint').addEventListener('click', () => {
@@ -477,17 +586,95 @@ function initExport() {
     setTimeout(() => { window.print(); renderTab(state.tab); }, 250);
   });
 
-  $('btnAi').addEventListener('click', () => renderTab('ai'));
-
   $('btnAdmin').addEventListener('click', () => { if (gate('manageUsers')) AD.open(); });
 
   /* عند تغيير إعدادات الـ AI: أعد بناء التاب والأزرار */
   root.addEventListener('sono:ai-changed', () => {
     applyPerms();
-    $('btnAi').disabled = !state.A || !RO.can(AU.user(), 'useAi');
     delete RENDERED.ai;
     if (state.tab === 'ai') renderTab('ai');
   });
+}
+
+/* ============================================================
+   تصدير PDF: التاب المعروض أو كل التابات
+   ============================================================ */
+const TAB_NAMES = { sum: 'ملخص التقرير', kpi: 'المؤشرات', risk: 'المخاطر', rec: 'التوصيات',
+                    plan: 'خطة العمل', ai: 'التحليل الذكي', data: 'البيانات التفصيلية' };
+const PDF_ORDER = ['sum', 'kpi', 'risk', 'rec', 'plan', 'ai', 'data'];
+
+async function exportPdf(scope) {
+  /* تقرير مقارنة معروض */
+  if (state.C) {
+    busy(true, 'جارٍ بناء ملف PDF…');
+    try {
+      await EX.toPdfFromNodes([$(PANES.cmp)], {
+        clinic: state.ctx.clinic, branch: state.ctx.branch,
+        range: state.C.periods.map(p => p.label).join(' · '),
+        section: 'تقرير مقارنة',
+        fileName: 'تقرير-مقارنة-سونو.pdf',
+        onProgress: m => $('busyMsg').textContent = m });
+    } catch (e) { alert('تعذّر إنشاء ملف PDF: ' + (e.message || e)); }
+    finally { busy(false); }
+    return;
+  }
+  if (!state.A) return;
+  const u = AU.user();
+  const ctxBase = { clinic: state.ctx.clinic, branch: state.ctx.branch,
+                    range: state.A.meta.rangeLabel,
+                    onProgress: m => $('busyMsg').textContent = m };
+
+  if (scope === 'tab') {
+    const t = state.tab;
+    if (t === 'cmp') {
+    state.tab = t; markTabs(t); showPane(t);
+    $('welcome').classList.add('hide');
+    if (!state.C) $(PANES.cmp).innerHTML =
+      '<div class="empty"><b>لا يوجد تقرير مقارنة معروض</b>افتح تاب «الأرشيف» واختر تقريرين أو أكثر ثم اضغط «مقارنة المحدَّد».</div>';
+    return;
+  }
+  if (t === 'arch') { alert('تاب الأرشيف ليس تقريراً — افتح تقريراً ثم صدّره.'); return; }
+    const el = $(PANES[t]);
+    if (!el || !el.innerHTML.trim()) { alert('لا يوجد محتوى في هذا التاب.'); return; }
+    busy(true, 'جارٍ بناء ملف PDF…');
+    try {
+      const n = await EX.toPdfFromNodes([el], { ...ctxBase, section: TAB_NAMES[t] || '',
+        fileName: `${TAB_NAMES[t] || 'تقرير'}-سونو.pdf` });
+      $('busyMsg').textContent = 'تم — ' + n + ' صفحة';
+    } catch (e) { console.error(e); alert('تعذّر إنشاء ملف PDF: ' + (e.message || e)); }
+    finally { busy(false); }
+    return;
+  }
+
+  /* كل التابات */
+  busy(true, 'جارٍ تجهيز كل التابات…');
+  const prevTab = state.tab;
+  try {
+    const nodes = [];
+    for (const t of PDF_ORDER) {
+      if (t === 'data' && !RO.can(u, 'data')) continue;
+      if (t === 'ai') {
+        /* لا نُدرج التحليل الذكي إلا إذا كان مولَّداً فعلاً */
+        const has = RENDERED.ai && $(PANES.ai).querySelector('.aimd');
+        if (!has) continue;
+      } else if (!RENDERED[t]) {
+        draw(t, $(PANES[t]));
+      }
+      const el = $(PANES[t]);
+      if (el && el.innerHTML.trim()) {
+        const wrap = document.createElement('div');
+        wrap.innerHTML = `<h2 style="font-family:Cairo;font-size:19px;font-weight:800;color:var(--petrol);
+          border-bottom:2px solid var(--petrol);padding-bottom:6px;margin:22px 0 12px">${TAB_NAMES[t]}</h2>`
+          + el.innerHTML;
+        nodes.push(wrap);
+      }
+    }
+    if (!nodes.length) throw new Error('لا يوجد محتوى للتصدير.');
+    const n = await EX.toPdfFromNodes(nodes, { ...ctxBase, section: 'التقرير الكامل',
+      fileName: `التقرير-الكامل-سونو-${state.A.meta.rangeLabel || ''}.pdf`.replace(/[\/\\:*?"<>|]/g, '-') });
+    $('busyMsg').textContent = 'تم — ' + n + ' صفحة';
+  } catch (e) { console.error(e); alert('تعذّر إنشاء ملف PDF: ' + (e.message || e)); }
+  finally { busy(false); renderTab(prevTab); }
 }
 
 function busy(on, msg) {

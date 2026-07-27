@@ -111,11 +111,35 @@ async function list() {
   return data || [];
 }
 
+/* حفظ تقرير مقارنة */
+async function saveComparison(C, titles, title) {
+  const sb = AU().client(), u = AU().user();
+  if (AU().mode() !== 'supabase' || !sb)
+    throw new Error('حفظ التقارير يحتاج تفعيل Supabase.');
+  if (!RO().can(u, 'upload')) throw new Error('دورك الحالي لا يسمح بحفظ التقارير.');
+  const last = C.periods[C.periods.length - 1];
+  const nm = String(title || '').trim() || ('مقارنة ' + C.periods.map(p => p.label).join(' مقابل '));
+  const row = {
+    title       : (/مقارنة/.test(nm) ? nm : 'مقارنة — ' + nm).slice(0, 160),
+    period_from : null, period_to: null,
+    files       : titles || [],
+    revenue     : Math.round(last.revenue), cost: Math.round(last.cost), net: Math.round(last.net),
+    score       : last.score, risk_count: C.risks.filter(r => r.persistent || r.emerged).length,
+    payload     : { v: 1, kind: 'comparison', comparison: C, sources: titles || [] },
+    created_by  : u.id || null, created_name: u.name || u.email
+  };
+  const { data, error } = await sb.from('reports').insert(row).select('id').maybeSingle();
+  if (error) throw new Error(dbErr(error.message));
+  return data;
+}
+
 async function load(id) {
   const sb = AU().client();
   const { data, error } = await sb.from('reports').select('payload,title').eq('id', id).maybeSingle();
   if (error) throw new Error(dbErr(error.message));
   if (!data) throw new Error('التقرير غير موجود — ربما حُذف.');
+  if (data.payload && data.payload.kind === 'comparison')
+    return { comparison: data.payload.comparison, sources: data.payload.sources || [], title: data.title };
   return { ...restorePayload(data.payload), title: data.title };
 }
 
@@ -134,5 +158,5 @@ function dbErr(m) {
   return m;
 }
 
-root.SonoArchive = { save, list, load, remove, buildPayload, restorePayload };
+root.SonoArchive = { save, saveComparison, list, load, remove, buildPayload, restorePayload };
 })(window);

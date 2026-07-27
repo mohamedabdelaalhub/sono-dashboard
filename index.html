@@ -134,22 +134,43 @@
 
 <header class="top">
   <div class="topin">
-    <div class="brand">
-      <div class="logo xs" id="logoTop"></div>
-      <div>
-        <b id="hName">مركز عيادات سونو التخصصية</b>
-        <span id="hBranch">فرع حدائق الأهرام</span>
+    <div class="tstart">
+      <div class="brand">
+        <div class="logo xs" id="logoTop"></div>
+        <div>
+          <b id="hName">مركز عيادات سونو التخصصية</b>
+          <span id="hBranch">فرع حدائق الأهرام</span>
+        </div>
+      </div>
+      <div class="topact">
+        <button class="btn ghost" id="btnXlsx"  disabled>تصدير Excel</button>
+        <span class="menuwrap">
+          <button class="btn ghost" id="btnPdf" disabled>تصدير PDF ▾</button>
+          <div class="menu hide" id="pdfMenu">
+            <button data-scope="tab">التاب المعروض فقط</button>
+            <button data-scope="all">كل التابات في ملف واحد</button>
+          </div>
+        </span>
+        <button class="btn ghost" id="btnPrint" disabled>طباعة / حفظ PDF</button>
       </div>
     </div>
-    <div class="topact">
-      <span class="who" id="who"></span>
-      <button class="btn ghost" id="btnAi"    disabled>تحليل ذكي</button>
-      <button class="btn ghost" id="btnXlsx"  disabled>تصدير Excel</button>
-      <button class="btn ghost" id="btnPdf"   disabled>تصدير PDF</button>
-      <button class="btn ghost" id="btnPrint" disabled>طباعة / حفظ PDF</button>
-      <button class="btn ghost icon" id="btnAdmin" title="لوحة التحكم" hidden>⚙</button>
-      <button class="btn ghost" id="btnPass">كلمة السر</button>
-      <button class="btn ghost" id="btnOut">خروج</button>
+
+    <div class="menuwrap usermenu">
+      <button class="btn ghost user" id="btnUser">
+        <span class="uav" id="uav">م</span>
+        <span class="uname" id="who">—</span>
+        <span class="ucaret">▾</span>
+      </button>
+      <div class="menu hide" id="userMenu">
+        <div class="uhead">
+          <b id="uName2">—</b>
+          <span id="uRole2">—</span>
+          <span id="uMail2" dir="ltr"></span>
+        </div>
+        <button id="btnAdmin" hidden>⚙&nbsp;&nbsp;لوحة التحكم</button>
+        <button id="btnPass">كلمة السر</button>
+        <button id="btnOut" class="danger">تسجيل الخروج</button>
+      </div>
     </div>
   </div>
 </header>
@@ -157,9 +178,9 @@
 <div class="wrap">
 
   <div class="drop" id="drop" role="button" tabindex="0">
-    <b>اسحب ملف الإكسل هنا أو اضغط للاختيار</b>
-    <span>يقبل ‎.xlsx‎ و‎.xls‎ و‎.csv‎ — ارفع أكثر من ملف معاً: شهور مختلفة للمقارنة، أو تقارير متكاملة لنفس الفترة (خزينة + بيان حالة)</span>
-    <input type="file" id="file" accept=".xlsx,.xls,.csv" multiple hidden>
+    <b>اسحب الملفات هنا أو اضغط للاختيار</b>
+    <span>يقبل ‎.xlsx‎ و‎.xls‎ و‎.csv‎ و‎.pdf‎ — ارفع أكثر من ملف معاً: شهور مختلفة للمقارنة، أو تقارير متكاملة لنفس الفترة (خزينة + بيان حالة)</span>
+    <input type="file" id="file" accept=".xlsx,.xls,.csv,.pdf" multiple hidden>
   </div>
   <div class="files" id="fileChips"></div>
 
@@ -181,6 +202,7 @@
     </div>
     <div class="tgrp hide" id="grpFrom"><label for="dFrom">من</label><input type="date" id="dFrom"></div>
     <div class="tgrp hide" id="grpTo"><label for="dTo">إلى</label><input type="date" id="dTo"></div>
+    <div class="tgrp"><label>&nbsp;</label><button class="btn ghost" id="btnCmpPeriods">مقارنة الفترات</button></div>
     <div class="tgrp"><label>&nbsp;</label><button class="btn ghost" id="btnClear">مسح الملفات</button></div>
     <div class="tgrp" style="margin-right:auto"><label>مقارنة</label><span class="who" id="cmpLbl">—</span></div>
   </div>
@@ -192,6 +214,7 @@
     <button role="tab" data-t="rec"  aria-selected="false">التوصيات <span class="cnt" id="cRec">0</span></button>
     <button role="tab" data-t="plan" aria-selected="false">خطة العمل <span class="cnt" id="cPlan">0</span></button>
     <button role="tab" data-t="ai"   aria-selected="false" id="tabAi">التحليل الذكي</button>
+    <button role="tab" data-t="cmp" aria-selected="false" id="tabCmp" class="hide">المقارنة</button>
     <button role="tab" data-t="arch" aria-selected="false" id="tabArch">الأرشيف</button>
     <button role="tab" data-t="data" aria-selected="false" id="tabData">البيانات التفصيلية</button>
   </nav>
@@ -207,6 +230,7 @@
     <section class="tabpane hide" id="pane-rec"></section>
     <section class="tabpane hide" id="pane-plan"></section>
     <section class="tabpane hide" id="pane-ai"></section>
+    <section class="tabpane hide" id="pane-cmp"></section>
     <section class="tabpane hide" id="pane-arch"></section>
     <section class="tabpane hide" id="pane-data"></section>
   </main>
@@ -267,6 +291,7 @@
 <script src="assets/js/roles.js"></script>
 <script src="assets/js/parser.js"></script>
 <script src="assets/js/parser-status.js"></script>
+<script src="assets/js/parser-pdf.js"></script>
 <script src="assets/js/analytics.js"></script>
 <script src="assets/js/rules.js"></script>
 <script src="assets/js/charts.js"></script>
@@ -277,6 +302,7 @@
 <script src="assets/js/admins.js"></script>
 <script src="assets/js/ai.js"></script>
 <script src="assets/js/archive.js"></script>
+<script src="assets/js/compare.js"></script>
 <script src="assets/js/app.js"></script>
 </body>
 </html>

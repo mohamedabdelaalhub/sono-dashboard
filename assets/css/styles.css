@@ -114,6 +114,7 @@ header.top{background:var(--surface);border-bottom:1px solid var(--line);
   position:sticky;top:0;z-index:40;box-shadow:0 1px 3px rgba(22,36,46,.05)}
 .topin{max-width:1280px;margin:0 auto;padding:12px 20px;display:flex;flex-wrap:wrap;
   align-items:center;gap:14px;justify-content:space-between}
+.tstart{display:flex;align-items:center;gap:18px;flex-wrap:wrap;min-width:0}
 .brand{display:flex;align-items:center;gap:11px;min-width:0}
 .brand .mk{width:36px;height:36px;border-radius:10px;background:var(--petrol);color:#fff;
   display:grid;place-items:center;font-family:Cairo;font-weight:800;font-size:16px;flex:0 0 auto}
@@ -121,6 +122,21 @@ header.top{background:var(--surface);border-bottom:1px solid var(--line);
 .brand span{font-size:12px;color:var(--muted)}
 .topact{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .who{font-size:12.5px;color:var(--muted);white-space:nowrap}
+
+/* قائمة المستخدم أقصى اليسار */
+.usermenu{flex:0 0 auto}
+.btn.ghost.user{display:flex;align-items:center;gap:9px;padding:6px 12px 6px 8px;border-radius:22px}
+.uav{width:28px;height:28px;border-radius:50%;background:var(--petrol);color:#fff;flex:0 0 auto;
+  display:grid;place-items:center;font-family:Cairo;font-weight:700;font-size:13px}
+.uname{font-size:13px;font-weight:600;max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ucaret{font-size:11px;color:var(--muted)}
+.usermenu .menu{left:0;right:auto;min-width:236px}
+.uhead{padding:11px 13px 12px;border-bottom:1px solid var(--line);margin-bottom:5px}
+.uhead b{display:block;font-family:Cairo;font-size:13.5px;font-weight:700}
+.uhead span{display:block;font-size:11.5px;color:var(--muted);margin-top:2px}
+.menu button.danger{color:var(--clay)}
+.menu button.danger:hover{background:#FDECEA}
+@media(max-width:700px){.uname{display:none}.btn.ghost.user{padding:6px 8px}}
 
 /* ---------- شريط الأدوات ---------- */
 .toolbar{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);
@@ -258,6 +274,14 @@ tr.done td{opacity:.45;text-decoration:line-through}
 .score .sd{flex:1;min-width:220px}
 .score .sd h2{margin-bottom:6px}
 .score .sd p{font-size:13.5px;color:var(--muted)}
+
+/* قائمة منسدلة صغيرة */
+.menuwrap{position:relative;display:inline-block}
+.menu{position:absolute;top:calc(100% + 6px);left:0;background:var(--surface);border:1px solid var(--line);
+  border-radius:11px;box-shadow:0 10px 30px rgba(22,36,46,.18);padding:5px;min-width:210px;z-index:45}
+.menu button{display:block;width:100%;text-align:right;background:none;border:0;font-family:inherit;
+  font-size:13px;color:var(--ink);padding:9px 12px;border-radius:8px;cursor:pointer;white-space:nowrap}
+.menu button:hover{background:var(--paper)}
 
 /* ============================================================
    لوحة التحكم (مودال)

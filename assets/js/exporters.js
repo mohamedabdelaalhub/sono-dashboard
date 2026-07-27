@@ -132,6 +132,89 @@ function toXlsx(A, E, ctx) {
 }
 
 /* ============================================================
+   PDF من عناصر الصفحة الفعلية — يصدّر ما تراه بالظبط
+   يُستخدم لتصدير تاب واحد أو كل التابات معاً.
+   ============================================================ */
+async function toPdfFromNodes(nodes, opts) {
+  opts = opts || {};
+  if (!window.jspdf || !window.html2canvas)
+    throw new Error('لم تُحمّل مكتبات إنشاء PDF. تأكد من الإنترنت ثم أعد المحاولة، أو استخدم زر «طباعة / حفظ PDF».');
+  const { jsPDF } = window.jspdf;
+  const list = (Array.isArray(nodes) ? nodes : [nodes]).filter(Boolean);
+  if (!list.length) throw new Error('لا يوجد محتوى للتصدير.');
+
+  /* غلاف مؤقت يحمل نسخة من العناصر بعرض ثابت */
+  const host = document.createElement('div');
+  host.setAttribute('dir', 'rtl');
+  host.className = 'pdf-capture';
+  host.style.cssText = 'position:absolute;left:-10000px;top:0;width:1120px;background:#fff;padding:26px';
+  host.innerHTML = header(opts) +
+    list.map(n => `<div style="margin-bottom:18px">${n.innerHTML}</div>`).join('') +
+    footer(opts);
+  document.body.appendChild(host);
+
+  try {
+    if (opts.onProgress) opts.onProgress('جارٍ تجهيز الصفحات…');
+    if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch (e) {} }
+    await new Promise(r => setTimeout(r, 400));
+
+    const canvas = await html2canvas(host, {
+      scale: 2, backgroundColor: '#FFFFFF', useCORS: true, logging: false,
+      windowWidth: 1120, width: 1120, scrollX: 0, scrollY: 0
+    });
+    if (!canvas || !canvas.width || !canvas.height)
+      throw new Error('تعذّر تصوير المحتوى. استخدم زر «طباعة / حفظ PDF» كبديل مضمون.');
+
+    if (opts.onProgress) opts.onProgress('جارٍ إنشاء ملف PDF…');
+    return slice(canvas, jsPDF, opts.fileName || ('تقرير-سونو-' + stamp() + '.pdf'));
+  } finally { host.remove(); }
+
+  function header(o) {
+    return `<div style="font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;direction:rtl;text-align:right;
+      display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #16212E;
+      padding-bottom:11px;margin-bottom:18px">
+      <div><div style="font-family:Cairo;font-size:22px;font-weight:800">${esc2(o.clinic || '')}</div>
+        <div style="font-size:12px;color:#5E7180">${esc2(o.branch || '')}${o.section ? ' · ' + esc2(o.section) : ''}</div></div>
+      <div style="text-align:left;font-size:11px;color:#5E7180">فترة التقرير
+        <div style="font-family:monospace;font-size:13px;color:#16212E;font-weight:600">${esc2(o.range || '')}</div></div>
+    </div>`;
+  }
+  function footer(o) {
+    return `<div style="font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;direction:rtl;
+      font-size:10.5px;color:#5E7180;text-align:center;margin-top:20px;border-top:1px solid #D4DBE0;padding-top:9px;line-height:1.8">
+      جميع المبالغ بالجنيه المصري · صدر في ${new Date().toLocaleString('ar-EG')}<br>${esc2(o.clinic || '')}</div>`;
+  }
+}
+function esc2(s) { return String(s == null ? '' : s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+
+/* تقسيم لوحة الرسم على صفحات A4 */
+function slice(canvas, jsPDF, fileName) {
+  const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+  const pw = pdf.internal.pageSize.getWidth();
+  const ph = pdf.internal.pageSize.getHeight();
+  const M = 8, iw = pw - M * 2;
+  const ih = canvas.height * iw / canvas.width;
+  const pageH = ph - M * 2;
+  const pages = Math.max(1, Math.ceil(ih / pageH));
+  const sliceH = Math.ceil(canvas.height / pages);
+
+  for (let p = 0; p < pages; p++) {
+    const c2 = document.createElement('canvas');
+    c2.width = canvas.width;
+    c2.height = Math.min(sliceH, canvas.height - p * sliceH);
+    const g = c2.getContext('2d');
+    g.fillStyle = '#FFFFFF'; g.fillRect(0, 0, c2.width, c2.height);
+    g.drawImage(canvas, 0, -p * sliceH);
+    if (p) pdf.addPage();
+    pdf.addImage(c2.toDataURL('image/jpeg', 0.92), 'JPEG', M, M, iw, c2.height * iw / canvas.width);
+    pdf.setFontSize(8); pdf.setTextColor(120);
+    pdf.text(`${p + 1} / ${pages}`, pw / 2, ph - 3, { align: 'center' });
+  }
+  pdf.save(fileName);
+  return pages;
+}
+
+/* ============================================================
    PDF — يُبنى من نسخة HTML مخصّصة للطباعة ثم يُصوَّر ويُقسَّم لصفحات A4
    هذه الطريقة تحافظ على تشكيل الحروف العربية واتجاه النص بالكامل.
    ============================================================ */
@@ -310,5 +393,26 @@ function metricRows(A) {
   ];
 }
 
-root.SonoExport = { toXlsx, toPdf };
+/* ============================================================
+   تصدير خطة العمل لمسؤول واحد
+   ============================================================ */
+function planXlsx(plan, ctx, owner) {
+  const wb = XLSX.utils.book_new();
+  wb.Workbook = { Views: [{ RTL: true }] };
+  const rows = [
+    [ctx.clinic], [ctx.branch],
+    ['خطة العمل' + (owner ? ' — ' + owner : '')],
+    ['الفترة', ctx.range || ''],
+    ['تاريخ التصدير', new Date().toLocaleString('ar-EG')], [],
+    ['#', 'المهمة', 'المجال', 'المسؤول', 'التوقيت', 'مؤشر القياس', 'المستهدف', 'الأولوية'],
+    ...plan.map((t, i) => [i + 1, t.t, t.area, t.own, 'أسبوع ' + t.wk, t.kpi, t.tgt, t.pr])
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [5, 54, 16, 26, 15, 30, 22, 9].map(w => ({ wch: w }));
+  XLSX.utils.book_append_sheet(wb, ws, 'خطة العمل');
+  XLSX.writeFile(wb, `خطة-العمل${owner ? '-' + owner.replace(/[\/\\:*?"<>|]/g, '') : ''}-${stamp()}.xlsx`,
+                 { compression: true });
+}
+
+root.SonoExport = { toXlsx, toPdf, toPdfFromNodes, planXlsx };
 })(window);

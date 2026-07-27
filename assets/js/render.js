@@ -354,8 +354,11 @@ function renderRecos(el, A, E) {
 /* ============================================================
    5) خطة العمل
    ============================================================ */
-function renderPlan(el, A, E) {
-  const done = JSON.parse(localStorage.getItem('sono_done') || '{}');
+function renderPlan(el, A, E, ctx) {
+  const owners = [...new Set(E.plan.map(t => t.own))].sort();
+  const areas  = [...new Set(E.plan.map(t => t.area))].sort();
+  let fOwner = '', fArea = '', fPrio = '';
+
   el.innerHTML = `
     <div class="card">
       <div class="chead">
@@ -363,31 +366,95 @@ function renderPlan(el, A, E) {
           <div class="note">${E.plan.length} مهمة مولّدة من المخاطر المرصودة — مرتبة بالأولوية، وكل مهمة لها مسؤول ومدة ومؤشر قياس</div></div>
         <div><span class="prio p1">أولوية 1 = هذا الأسبوع</span> <span class="prio p2">2 = خلال الشهر</span> <span class="prio p3">3 = خلال الربع</span></div>
       </div>
-      <div class="tscroll"><table class="plan">
-        <thead><tr>
-          <th style="width:34px">✓</th><th style="width:34px">#</th><th>المهمة</th>
-          <th>المسؤول</th><th>التوقيت</th><th>مؤشر القياس</th><th>المستهدف</th><th>الأولوية</th>
-        </tr></thead>
-        <tbody>${E.plan.map(t => `
-          <tr data-k="${esc(t.t)}" class="${done[t.t] ? 'done' : ''}">
-            <td><input type="checkbox" class="chk" ${done[t.t] ? 'checked' : ''}></td>
-            <td class="n">${t.n}</td>
-            <td><b>${esc(t.t)}</b><div style="font-size:11.5px;color:var(--muted);margin-top:2px">${esc(t.area)}</div></td>
-            <td>${esc(t.own)}</td>
-            <td class="pr">أسبوع ${esc(t.wk)}</td>
-            <td>${esc(t.kpi)}</td>
-            <td class="n">${esc(t.tgt)}</td>
-            <td><span class="prio p${t.pr}">${t.pr}</span></td>
-          </tr>`).join('')}</tbody>
-      </table></div>
+
+      <div class="frow" style="align-items:flex-end">
+        <div class="fld narrow"><label for="plOwner">المسؤول</label>
+          <select id="plOwner"><option value="">كل المسؤولين</option>
+            ${owners.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('')}</select></div>
+        <div class="fld narrow"><label for="plArea">المجال</label>
+          <select id="plArea"><option value="">كل المجالات</option>
+            ${areas.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('')}</select></div>
+        <div class="fld narrow"><label for="plPrio">الأولوية</label>
+          <select id="plPrio"><option value="">الكل</option>
+            <option value="1">1 — هذا الأسبوع</option><option value="2">2 — خلال الشهر</option>
+            <option value="3">3 — خلال الربع</option></select></div>
+        <div class="fld narrow" style="flex:0 0 auto"><label>&nbsp;</label>
+          <button class="btn ghost sm" id="plXlsx">تصدير Excel</button></div>
+        <div class="fld narrow" style="flex:0 0 auto"><label>&nbsp;</label>
+          <button class="btn ghost sm" id="plPdf">تصدير PDF</button></div>
+        <div class="fld" style="margin-right:auto;text-align:left">
+          <label>&nbsp;</label><span class="who" id="plCount"></span></div>
+      </div>
+
+      <div id="plWrap"></div>
     </div>`;
-  el.querySelectorAll('.chk').forEach(c => c.addEventListener('change', e => {
-    const tr = e.target.closest('tr'), k = tr.dataset.k;
-    const d = JSON.parse(localStorage.getItem('sono_done') || '{}');
-    if (e.target.checked) d[k] = 1; else delete d[k];
-    localStorage.setItem('sono_done', JSON.stringify(d));
-    tr.classList.toggle('done', e.target.checked);
-  }));
+
+  const wrap = document.getElementById('plWrap');
+
+  function filtered() {
+    return E.plan.filter(t =>
+      (!fOwner || t.own === fOwner) &&
+      (!fArea  || t.area === fArea) &&
+      (!fPrio  || String(t.pr) === fPrio));
+  }
+
+  function paint() {
+    const done = JSON.parse(localStorage.getItem('sono_done') || '{}');
+    const rows = filtered();
+    document.getElementById('plCount').textContent =
+      `${rows.length} من ${E.plan.length} مهمة` +
+      (fOwner ? ` · ${rows.filter(t => done[t.t]).length} منجزة` : '');
+    wrap.innerHTML = `<div class="tscroll"><table class="plan">
+      <thead><tr>
+        <th style="width:34px">✓</th><th style="width:34px">#</th><th>المهمة</th>
+        <th>المسؤول</th><th>التوقيت</th><th>مؤشر القياس</th><th>المستهدف</th><th>الأولوية</th>
+      </tr></thead>
+      <tbody>${rows.map(t => `
+        <tr data-k="${esc(t.t)}" class="${done[t.t] ? 'done' : ''}">
+          <td><input type="checkbox" class="chk" ${done[t.t] ? 'checked' : ''}></td>
+          <td class="n">${t.n}</td>
+          <td><b>${esc(t.t)}</b><div style="font-size:11.5px;color:var(--muted);margin-top:2px">${esc(t.area)}</div></td>
+          <td>${esc(t.own)}</td>
+          <td class="pr">أسبوع ${esc(t.wk)}</td>
+          <td>${esc(t.kpi)}</td>
+          <td class="n">${esc(t.tgt)}</td>
+          <td><span class="prio p${t.pr}">${t.pr}</span></td>
+        </tr>`).join('') || '<tr><td colspan="8" class="note">لا مهام بهذا الفلتر.</td></tr>'}</tbody>
+    </table></div>`;
+
+    wrap.querySelectorAll('.chk').forEach(c => c.addEventListener('change', e => {
+      const tr = e.target.closest('tr'), k = tr.dataset.k;
+      const d = JSON.parse(localStorage.getItem('sono_done') || '{}');
+      if (e.target.checked) d[k] = 1; else delete d[k];
+      localStorage.setItem('sono_done', JSON.stringify(d));
+      tr.classList.toggle('done', e.target.checked);
+      paint();
+    }));
+  }
+
+  document.getElementById('plOwner').onchange = e => { fOwner = e.target.value; paint(); };
+  document.getElementById('plArea').onchange  = e => { fArea  = e.target.value; paint(); };
+  document.getElementById('plPrio').onchange  = e => { fPrio  = e.target.value; paint(); };
+
+  document.getElementById('plXlsx').onclick = () => {
+    try {
+      root.SonoExport.planXlsx(filtered(),
+        { clinic: (ctx && ctx.clinic) || '', branch: (ctx && ctx.branch) || '', range: A.meta.rangeLabel },
+        fOwner);
+    } catch (e) { alert('تعذّر التصدير: ' + (e.message || e)); }
+  };
+  document.getElementById('plPdf').onclick = async () => {
+    try {
+      await root.SonoExport.toPdfFromNodes([wrap], {
+        clinic: (ctx && ctx.clinic) || '', branch: (ctx && ctx.branch) || '',
+        range: A.meta.rangeLabel,
+        section: 'خطة العمل' + (fOwner ? ' — ' + fOwner : ''),
+        fileName: `خطة-العمل${fOwner ? '-' + fOwner : ''}.pdf`.replace(/[\/\\:*?"<>|]/g, '-')
+      });
+    } catch (e) { alert('تعذّر إنشاء PDF: ' + (e.message || e)); }
+  };
+
+  paint();
 }
 
 /* ============================================================
@@ -552,7 +619,145 @@ function renderAiTab(el, state) {
 }
 
 /* ============================================================
-   8) الأرشيف
+   8) عرض تقرير المقارنة
+   ============================================================ */
+function renderComparison(el, C, title, onSave) {
+  const money = (m, v) => m.money ? fmt(v) : m.rate ? pc(v) : fmt(v);
+  const chg = m => m.change === null ? '—'
+    : `<span class="${m.change * m.good >= 0 ? 'dl-up' : 'dl-dn'}">${m.change >= 0 ? '▲' : '▼'} ${Math.abs(m.change * 100).toFixed(1)}%</span>`;
+  const vTag = v => `<span class="tag ${v === 'تحسّن' ? 'low' : v === 'تراجع' ? 'high' : 'medium'}">${esc(v)}</span>`;
+
+  el.innerHTML = `
+    <div class="card" style="border-top:3px solid var(--petrol)">
+      <div class="chead">
+        <div><h2>${esc(title || 'تقرير مقارنة')}</h2>
+          <div class="note">مقارنة ${fmt(C.n)} فترات · التحليل مبني على التقارير المحفوظة كما هي</div></div>
+        <div style="text-align:left">
+          <div style="font-size:12px;color:var(--muted)">مؤشر الصحة</div>
+          <div class="num" style="font-size:20px;font-weight:600">${C.scores.join(' ← ')}</div>
+        </div>
+      </div>
+      ${onSave ? `<div class="frow noprint" style="margin-bottom:14px">
+        <div class="fld"><label for="cmpTitle">اسم تقرير المقارنة</label>
+          <input type="text" id="cmpTitle" placeholder="${esc(title || '')}"></div>
+        <div class="fld narrow" style="flex:0 0 auto"><label>&nbsp;</label>
+          <button class="btn sm" id="cmpSave">حفظ في الأرشيف</button></div>
+      </div><div id="cmpMsg" class="noprint"></div>` : ''}
+      <div class="tscroll"><table>
+        <thead><tr><th>الفترة</th><th>المدى</th><th>أيام</th><th>الإيراد</th><th>المنصرف</th>
+          <th>الصافي</th><th>الهامش</th><th>المرضى</th><th>المؤشر</th><th>المخاطر</th></tr></thead>
+        <tbody>${C.periods.map(p => `<tr>
+          <td><b>${esc(p.label)}</b></td>
+          <td style="font-size:12px;color:var(--muted)">${esc(p.range)}</td>
+          <td class="n">${fmt(p.days)}</td>
+          <td class="n">${fmt(p.revenue)}</td>
+          <td class="n">${fmt(p.cost)}</td>
+          <td class="n" style="color:${p.net >= 0 ? 'var(--moss)' : 'var(--clay)'}">${fmt(p.net)}</td>
+          <td class="n">${pc(p.margin)}</td>
+          <td class="n">${fmt(p.patients)}</td>
+          <td class="n">${p.score}</td>
+          <td class="n">${p.riskCount}</td></tr>`).join('')}</tbody>
+      </table></div>
+    </div>
+
+    ${C.summary.map(s => `
+      <div class="card"><h2>${esc(s.h)}</h2>
+        <p style="font-size:14.5px;line-height:1.95;margin-top:8px">${esc(s.p)}</p></div>`).join('')}
+
+    <div class="card">
+      <h2>حركة المؤشرات</h2>
+      <div class="note">القيم بترتيب الفترات من الأقدم للأحدث</div>
+      <div class="tscroll"><table>
+        <thead><tr><th>المؤشر</th>${C.periods.map(p => `<th>${esc(p.label)}</th>`).join('')}
+          <th>الفرق</th><th>التغيّر</th><th>الاتجاه</th><th>الحكم</th></tr></thead>
+        <tbody>${C.metrics.map(m => `<tr>
+          <td>${esc(m.name)}</td>
+          ${m.values.map(v => `<td class="n">${money(m, v)}</td>`).join('')}
+          <td class="n">${m.money ? fmt(m.diff) : m.rate ? (m.diff * 100).toFixed(1) + ' نقطة' : fmt(m.diff)}</td>
+          <td class="n">${chg(m)}</td>
+          <td>${esc(m.direction)}</td>
+          <td>${vTag(m.verdict)}</td></tr>`).join('')}</tbody>
+      </table></div>
+    </div>
+
+    <div class="grid2">
+      <div class="card"><h2>الخدمات الأكثر نمواً</h2>
+        <div class="note">فرق الإيراد بين أول وآخر فترة</div>
+        <div class="tscroll" style="max-height:340px;overflow-y:auto"><table>
+          <thead><tr><th>الخدمة</th><th>الأولى</th><th>الأخيرة</th><th>الفرق</th></tr></thead>
+          <tbody>${C.gainers.filter(s => s.diff > 0).map(s => `<tr>
+            <td>${esc(s.name)}</td><td class="n">${fmt(s.first)}</td><td class="n">${fmt(s.last)}</td>
+            <td class="n" style="color:var(--moss)">+${fmt(s.diff)}</td></tr>`).join('')
+            || '<tr><td colspan="4" class="note">لا نمو.</td></tr>'}</tbody>
+        </table></div></div>
+
+      <div class="card"><h2>الخدمات الأكثر تراجعاً</h2>
+        <div class="note">تحتاج تفسيراً: توقف طبيب؟ تغيّر سعر؟ منافسة؟</div>
+        <div class="tscroll" style="max-height:340px;overflow-y:auto"><table>
+          <thead><tr><th>الخدمة</th><th>الأولى</th><th>الأخيرة</th><th>الفرق</th></tr></thead>
+          <tbody>${C.losers.filter(s => s.diff < 0).map(s => `<tr>
+            <td>${esc(s.name)}</td><td class="n">${fmt(s.first)}</td><td class="n">${fmt(s.last)}</td>
+            <td class="n" style="color:var(--clay)">${fmt(s.diff)}</td></tr>`).join('')
+            || '<tr><td colspan="4" class="note">لا تراجع.</td></tr>'}</tbody>
+        </table></div></div>
+    </div>
+
+    <div class="card">
+      <h2>حركة بنود المصروف</h2>
+      <div class="tscroll"><table>
+        <thead><tr><th>البند</th>${C.periods.map(p => `<th>${esc(p.label)}</th>`).join('')}
+          <th>الفرق</th><th>التغيّر</th></tr></thead>
+        <tbody>${C.expenses.map(e => `<tr>
+          <td>${esc(e.name)}</td>
+          ${e.vals.map(v => `<td class="n">${fmt(v)}</td>`).join('')}
+          <td class="n" style="color:${e.diff > 0 ? 'var(--clay)' : 'var(--moss)'}">${e.diff >= 0 ? '+' : ''}${fmt(e.diff)}</td>
+          <td class="n">${e.change === null ? '—' : (e.change >= 0 ? '+' : '') + pc(e.change)}</td></tr>`).join('')}</tbody>
+      </table></div>
+    </div>
+
+    <div class="card">
+      <h2>المخاطر عبر الفترات</h2>
+      <div class="note">المستمرة تعني أن المعالجة لم تُنفَّذ · الجديدة تحتاج قراراً الآن</div>
+      <div class="tscroll"><table>
+        <thead><tr><th>المخاطرة</th><th>المجال</th><th>الخطورة</th>
+          ${C.periods.map(p => `<th>${esc(p.label)}</th>`).join('')}<th>الحالة</th></tr></thead>
+        <tbody>${C.risks.map(r => `<tr>
+          <td>${esc(r.title)}</td><td style="font-size:12px;color:var(--muted)">${esc(r.area)}</td>
+          <td><span class="tag ${r.sev === 'مرتفعة' ? 'high' : r.sev === 'حرجة' ? 'critical' : r.sev === 'متوسطة' ? 'medium' : 'low'}">${esc(r.sev)}</span></td>
+          ${r.in.map(v => `<td style="text-align:center">${v ? '●' : '—'}</td>`).join('')}
+          <td>${r.persistent ? '<span class="tag high">مستمرة</span>'
+              : r.emerged ? '<span class="tag medium">جديدة</span>'
+              : r.resolved ? '<span class="tag low">عولجت</span>' : '—'}</td></tr>`).join('')}</tbody>
+      </table></div>
+    </div>
+
+    <div class="card">
+      <h2>حركة أتعاب الأطباء</h2>
+      <div class="tscroll" style="max-height:400px;overflow-y:auto"><table>
+        <thead><tr><th>الطبيب</th>${C.periods.map(p => `<th>${esc(p.label)}</th>`).join('')}
+          <th>الفرق</th><th>ظهر في</th></tr></thead>
+        <tbody>${C.doctors.map(d => `<tr>
+          <td>د/ ${esc(d.name)}</td>
+          ${d.vals.map(v => `<td class="n">${v ? fmt(v) : '—'}</td>`).join('')}
+          <td class="n">${d.diff >= 0 ? '+' : ''}${fmt(d.diff)}</td>
+          <td class="n">${d.periods}/${C.n}</td></tr>`).join('')}</tbody>
+      </table></div>
+    </div>`;
+
+  const sv = document.getElementById('cmpSave');
+  if (sv && onSave) sv.onclick = async () => {
+    sv.disabled = true; sv.textContent = 'جارٍ الحفظ…';
+    const msg = document.getElementById('cmpMsg');
+    try {
+      await onSave(document.getElementById('cmpTitle').value);
+      msg.innerHTML = '<div class="ok">تم حفظ تقرير المقارنة في الأرشيف.</div>';
+    } catch (e) { msg.innerHTML = `<div class="err">${esc(e.message)}</div>`; }
+    finally { sv.disabled = false; sv.textContent = 'حفظ في الأرشيف'; }
+  };
+}
+
+/* ============================================================
+   9) الأرشيف
    ============================================================ */
 async function renderArchive(el, state, handlers) {
   const AR = root.SonoArchive, AU = root.SonoAuth, RO = root.SonoRoles;
@@ -598,11 +803,18 @@ async function renderArchive(el, state, handlers) {
     catch (e) { listEl.innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
     if (!rows.length) { listEl.innerHTML = '<p class="note">لا توجد تقارير محفوظة بعد.</p>'; return; }
 
-    listEl.innerHTML = `<div class="tscroll"><table>
-      <thead><tr><th>التقرير</th><th>الفترة</th><th>الإيراد</th><th>الصافي</th>
+    const isCmp = r => /مقارنة/.test(r.title || '');
+    listEl.innerHTML = `
+      <div class="frow" style="margin-bottom:12px;align-items:center">
+        <button class="btn sm" id="arCompare" disabled>مقارنة المحدَّد</button>
+        <span class="who" id="arSel">اختر تقريرين أو أكثر للمقارنة</span>
+      </div>
+      <div class="tscroll"><table>
+      <thead><tr><th style="width:34px"></th><th>التقرير</th><th>الفترة</th><th>الإيراد</th><th>الصافي</th>
         <th>المؤشر</th><th>المخاطر</th><th>حفظه</th><th></th></tr></thead>
       <tbody>${rows.map(r => `<tr data-id="${esc(r.id)}">
-        <td><b>${esc(r.title)}</b>
+        <td>${isCmp(r) ? '' : `<input type="checkbox" class="chk arPick">`}</td>
+        <td><b>${esc(r.title)}</b>${isCmp(r) ? ' <span class="badge pend">مقارنة</span>' : ''}
           <div style="font-size:11px;color:var(--muted)">${(r.files || []).map(esc).join(' · ') || '—'}</div></td>
         <td class="n" style="font-size:12px">${esc(r.period_from || '—')} ${r.period_to ? '→ ' + esc(r.period_to) : ''}</td>
         <td class="n">${fmt(r.revenue)}</td>
@@ -615,6 +827,24 @@ async function renderArchive(el, state, handlers) {
           <button class="btn ghost sm arOpen">عرض</button>
           <button class="btn ghost sm arDel">حذف</button></td>
       </tr>`).join('')}</tbody></table></div>`;
+
+    const cmpBtn = document.getElementById('arCompare');
+    const selLbl = document.getElementById('arSel');
+    const picked = () => [...listEl.querySelectorAll('.arPick:checked')]
+      .map(c => c.closest('tr').dataset.id);
+
+    listEl.querySelectorAll('.arPick').forEach(c => c.onchange = () => {
+      const p = picked();
+      cmpBtn.disabled = p.length < 2;
+      selLbl.textContent = p.length ? `${p.length} تقرير محدَّد` : 'اختر تقريرين أو أكثر للمقارنة';
+    });
+
+    cmpBtn.onclick = async () => {
+      cmpBtn.disabled = true; cmpBtn.textContent = 'جارٍ التحليل…';
+      try { await handlers.compare(picked()); }
+      catch (e) { listEl.insertAdjacentHTML('afterbegin', `<div class="err">${esc(e.message)}</div>`); }
+      finally { cmpBtn.disabled = false; cmpBtn.textContent = 'مقارنة المحدَّد'; }
+    };
 
     listEl.querySelectorAll('tr[data-id]').forEach(tr => {
       const id = tr.dataset.id;
@@ -646,5 +876,5 @@ async function renderArchive(el, state, handlers) {
 }
 
 root.SonoRender = { renderSummary, renderKpi, renderRisks, renderRecos, renderPlan, renderData,
-                    renderAiTab, renderArchive, drawRibbon };
+                    renderAiTab, renderArchive, renderComparison, drawRibbon };
 })(window);
