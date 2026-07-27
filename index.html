@@ -158,7 +158,7 @@
 
   <div class="drop" id="drop" role="button" tabindex="0">
     <b>اسحب ملف الإكسل هنا أو اضغط للاختيار</b>
-    <span>يقبل ‎.xlsx‎ و‎.xls‎ و‎.csv‎ — يمكنك رفع أكثر من ملف معاً (شهور مختلفة) للمقارنة بين الفترات</span>
+    <span>يقبل ‎.xlsx‎ و‎.xls‎ و‎.csv‎ — ارفع أكثر من ملف معاً: شهور مختلفة للمقارنة، أو تقارير متكاملة لنفس الفترة (خزينة + بيان حالة)</span>
     <input type="file" id="file" accept=".xlsx,.xls,.csv" multiple hidden>
   </div>
   <div class="files" id="fileChips"></div>
@@ -192,6 +192,7 @@
     <button role="tab" data-t="rec"  aria-selected="false">التوصيات <span class="cnt" id="cRec">0</span></button>
     <button role="tab" data-t="plan" aria-selected="false">خطة العمل <span class="cnt" id="cPlan">0</span></button>
     <button role="tab" data-t="ai"   aria-selected="false" id="tabAi">التحليل الذكي</button>
+    <button role="tab" data-t="arch" aria-selected="false" id="tabArch">الأرشيف</button>
     <button role="tab" data-t="data" aria-selected="false" id="tabData">البيانات التفصيلية</button>
   </nav>
 
@@ -206,6 +207,7 @@
     <section class="tabpane hide" id="pane-rec"></section>
     <section class="tabpane hide" id="pane-plan"></section>
     <section class="tabpane hide" id="pane-ai"></section>
+    <section class="tabpane hide" id="pane-arch"></section>
     <section class="tabpane hide" id="pane-data"></section>
   </main>
 
@@ -274,6 +276,7 @@
 <script src="assets/js/auth.js"></script>
 <script src="assets/js/admins.js"></script>
 <script src="assets/js/ai.js"></script>
+<script src="assets/js/archive.js"></script>
 <script src="assets/js/app.js"></script>
 </body>
 </html>

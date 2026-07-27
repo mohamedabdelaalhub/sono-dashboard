@@ -147,6 +147,7 @@ async function enterApp() {
   $('app').classList.remove('hide');
   $('pgFoot').innerHTML =
     `جميع المبالغ بالجنيه المصري · التحليل يتم بالكامل داخل متصفحك ولا تُرفع البيانات إلى أي خادم<br>${CFG.clinicName || ''}`;
+  $('tabs').classList.remove('hide');
   applyPerms();
 }
 
@@ -184,9 +185,11 @@ function initUpload() {
 
 function clearAll() {
   state.files = []; state.income = []; state.expense = []; state.status = []; state.A = null;
-  renderChips(); $('toolbar').classList.add('hide'); $('tabs').classList.add('hide');
+  renderChips(); $('toolbar').classList.add('hide');
   document.querySelectorAll('.tabpane').forEach(p => { p.classList.add('hide'); p.innerHTML = ''; });
+  Object.keys(RENDERED).forEach(k => delete RENDERED[k]);
   $('welcome').classList.remove('hide');
+  markTabs('sum'); state.tab = 'sum';
   ['btnXlsx', 'btnPdf', 'btnPrint', 'btnAi'].forEach(b => $(b).disabled = true);
 }
 
@@ -364,7 +367,7 @@ function rebuild() {
    التابات
    ============================================================ */
 const PANES = { sum: 'pane-sum', kpi: 'pane-kpi', risk: 'pane-risk', rec: 'pane-rec',
-                plan: 'pane-plan', ai: 'pane-ai', data: 'pane-data' };
+                plan: 'pane-plan', ai: 'pane-ai', arch: 'pane-arch', data: 'pane-data' };
 const RENDERED = {};
 
 function initTabs() {
@@ -374,16 +377,61 @@ function initTabs() {
 
 function renderTab(t, force) {
   const u = AU.user();
+  if (t === 'arch') {
+    state.tab = t; markTabs(t); showPane(t);
+    $('welcome').classList.add('hide');
+    draw(t, $(PANES[t]));
+    return;
+  }
   if (t === 'data' && !RO.can(u, 'data')) t = 'sum';
   if (t === 'ai'   && !RO.can(u, 'useAi')) t = 'sum';
   state.tab = t;
-  document.querySelectorAll('nav.tabs button').forEach(b =>
-    b.setAttribute('aria-selected', b.dataset.t === t ? 'true' : 'false'));
+  markTabs(t);
   if (force) Object.keys(RENDERED).forEach(k => delete RENDERED[k]);
-  Object.keys(PANES).forEach(k => $(PANES[k]).classList.toggle('hide', k !== t));
-  if (!state.A) return;
+  showPane(t);
+  if (!state.A) { $('welcome').classList.remove('hide'); return; }
+  $('welcome').classList.add('hide');
   if (RENDERED[t]) { if (t === 'sum') RD.drawRibbon(state.A, 'd'); return; }
   draw(t, $(PANES[t]));
+}
+
+function markTabs(t) {
+  document.querySelectorAll('nav.tabs button').forEach(b =>
+    b.setAttribute('aria-selected', b.dataset.t === t ? 'true' : 'false'));
+}
+function showPane(t) {
+  Object.keys(PANES).forEach(k => $(PANES[k]).classList.toggle('hide', k !== t));
+}
+
+/* ---------- الأرشيف ---------- */
+function archiveHandlers() {
+  return {
+    save: async title => {
+      if (!state.A) throw new Error('لا يوجد تقرير معروض للحفظ.');
+      await root.SonoArchive.save(state.A, state.E, state.cmp,
+        state.files.map(f => f.name), title);
+    },
+    open: async id => {
+      busy(true, 'جارٍ فتح التقرير…');
+      try {
+        const r = await root.SonoArchive.load(id);
+        state.A = r.A; state.E = r.E; state.cmp = r.cmp;
+        state.archived = r.title;
+        $('cRisk').textContent = r.E.risks.length;
+        $('cRec').textContent  = r.E.recos.length;
+        $('cPlan').textContent = r.E.plan.length;
+        $('cmpLbl').textContent = 'تقرير محفوظ: ' + r.title;
+        $('welcome').classList.add('hide');
+        $('tabs').classList.remove('hide');
+        $('toolbar').classList.add('hide');
+        ['btnXlsx', 'btnPdf', 'btnPrint'].forEach(b => $(b).disabled = !RO.can(AU.user(), 'export'));
+        $('btnAi').disabled = !RO.can(AU.user(), 'useAi');
+        Object.keys(RENDERED).forEach(k => delete RENDERED[k]);
+        renderTab('sum');
+      } catch (e) { alert('تعذّر فتح التقرير: ' + (e.message || e)); }
+      finally { busy(false); }
+    }
+  };
 }
 
 function draw(t, el) {
@@ -393,6 +441,7 @@ function draw(t, el) {
      rec : () => RD.renderRecos(el, state.A, state.E),
      plan: () => RD.renderPlan(el, state.A, state.E),
      ai  : () => RD.renderAiTab(el, state),
+     arch: () => RD.renderArchive(el, state, archiveHandlers()),
      data: () => RD.renderData(el, state.A, state.E) })[t]();
   RENDERED[t] = 1;
 }

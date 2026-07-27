@@ -426,6 +426,14 @@ function renderData(el, A, E, raw) {
         </table></div></div>
     </div>
 
+    ${A.archived && A.unclassifiedSummary && A.unclassifiedSummary.count ? `
+    <div class="notice">
+      <h3>حركات تحتاج تصنيف محاسبي</h3>
+      <ul><li><span>—</span><div>${fmt(A.unclassifiedSummary.count)} حركة بإجمالي ${eg(A.unclassifiedSummary.total)}.
+        تفاصيل هذه الحركات لا تُحفظ في الأرشيف لأن حقل البيان قد يحتوي أسماء أشخاص —
+        ارفع ملف الفترة من جديد لعرضها.</div></li></ul>
+    </div>` : ''}
+
     ${A.unclassifiedRows.length ? `
     <div class="card">
       <h2>حركات تحتاج تصنيف محاسبي</h2>
@@ -439,7 +447,9 @@ function renderData(el, A, E, raw) {
 
     <div class="card">
       <h2>أعلى 15 مريضاً بالإيراد</h2>
-      <div class="note">تُعرض الأسماء للمراجعة الإدارية فقط — لا تُصدَّر في تقرير PDF العام</div>
+      <div class="note">${A.archived
+        ? 'أسماء المرضى لا تُحفظ في الأرشيف إطلاقاً — ارفع ملف الفترة لعرضها.'
+        : 'تُعرض الأسماء للمراجعة الإدارية فقط — لا تُصدَّر في تقرير PDF العام'}</div>
       <div class="tscroll"><table>
         <thead><tr><th>المريض</th><th>رقم الملف</th><th>الزيارات</th><th>الإيراد</th></tr></thead>
         <tbody>${A.topPatients.map(p => `<tr><td>${esc(p.name)}</td><td class="n">${esc(p.file)}</td>
@@ -541,6 +551,100 @@ function renderAiTab(el, state) {
     .forEach(b => b.onclick = () => send(b.textContent));
 }
 
+/* ============================================================
+   8) الأرشيف
+   ============================================================ */
+async function renderArchive(el, state, handlers) {
+  const AR = root.SonoArchive, AU = root.SonoAuth, RO = root.SonoRoles;
+  const canSave = state.A && RO.can(AU.user(), 'upload');
+  const local = AU.mode() !== 'supabase';
+
+  el.innerHTML = `
+    <div class="card">
+      <div class="chead">
+        <div><h2>حفظ التقرير الحالي</h2>
+          <div class="note">${local
+            ? 'الأرشيف يحتاج تفعيل Supabase ليُحفظ مشتركاً بين كل المستخدمين والأجهزة.'
+            : 'يُحفظ التحليل المجمّع كاملاً — المؤشرات والمخاطر والتوصيات وخطة العمل. لا تُحفظ أسماء المرضى إطلاقاً.'}</div></div>
+      </div>
+      ${canSave && !local ? `
+        <div class="frow">
+          <div class="fld"><label for="arTitle">اسم التقرير</label>
+            <input type="text" id="arTitle" placeholder="${esc(state.A.meta.rangeLabel || 'تقرير الفترة')}"></div>
+          <div class="fld narrow" style="flex:0 0 auto"><label>&nbsp;</label>
+            <button class="btn sm" id="arSave">حفظ في الأرشيف</button></div>
+        </div>
+        <div id="arMsg"></div>`
+        : `<p class="note">${local ? 'فعّل Supabase أولاً.'
+            : state.A ? 'دورك الحالي لا يسمح بحفظ التقارير.' : 'ارفع ملفاً أولاً ليصبح هناك تقرير للحفظ.'}</p>`}
+    </div>
+
+    <div class="card">
+      <div class="chead">
+        <div><h2>التقارير المحفوظة</h2>
+          <div class="note">اضغط أي تقرير لعرضه بالكامل في اللوحة</div></div>
+        <button class="btn ghost sm" id="arRefresh">تحديث</button>
+      </div>
+      <div id="arList"><p class="note">جارٍ التحميل…</p></div>
+    </div>`;
+
+  const listEl = document.getElementById('arList');
+
+  async function fill() {
+    if (local) { listEl.innerHTML = '<p class="note">غير متاح في الوضع المحلي.</p>'; return; }
+    listEl.innerHTML = '<p class="note">جارٍ التحميل…</p>';
+    let rows;
+    try { rows = await AR.list(); }
+    catch (e) { listEl.innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+    if (!rows.length) { listEl.innerHTML = '<p class="note">لا توجد تقارير محفوظة بعد.</p>'; return; }
+
+    listEl.innerHTML = `<div class="tscroll"><table>
+      <thead><tr><th>التقرير</th><th>الفترة</th><th>الإيراد</th><th>الصافي</th>
+        <th>المؤشر</th><th>المخاطر</th><th>حفظه</th><th></th></tr></thead>
+      <tbody>${rows.map(r => `<tr data-id="${esc(r.id)}">
+        <td><b>${esc(r.title)}</b>
+          <div style="font-size:11px;color:var(--muted)">${(r.files || []).map(esc).join(' · ') || '—'}</div></td>
+        <td class="n" style="font-size:12px">${esc(r.period_from || '—')} ${r.period_to ? '→ ' + esc(r.period_to) : ''}</td>
+        <td class="n">${fmt(r.revenue)}</td>
+        <td class="n" style="color:${r.net >= 0 ? 'var(--moss)' : 'var(--clay)'}">${fmt(r.net)}</td>
+        <td class="n">${r.score}</td>
+        <td class="n">${r.risk_count}</td>
+        <td style="font-size:12px">${esc(r.created_name || '—')}
+          <div style="font-size:11px;color:var(--muted)">${new Date(r.created_at).toLocaleDateString('ar-EG')}</div></td>
+        <td style="white-space:nowrap">
+          <button class="btn ghost sm arOpen">عرض</button>
+          <button class="btn ghost sm arDel">حذف</button></td>
+      </tr>`).join('')}</tbody></table></div>`;
+
+    listEl.querySelectorAll('tr[data-id]').forEach(tr => {
+      const id = tr.dataset.id;
+      const op = tr.querySelector('.arOpen');
+      if (op) op.onclick = () => handlers.open(id);
+      const dl = tr.querySelector('.arDel');
+      if (dl) dl.onclick = async () => {
+        if (!confirm('حذف هذا التقرير من الأرشيف نهائياً؟')) return;
+        try { await AR.remove(id); await fill(); }
+        catch (e) { listEl.insertAdjacentHTML('afterbegin', `<div class="err">${esc(e.message)}</div>`); }
+      };
+    });
+  }
+
+  const sv = document.getElementById('arSave');
+  if (sv) sv.onclick = async () => {
+    sv.disabled = true; sv.textContent = 'جارٍ الحفظ…';
+    const msg = document.getElementById('arMsg');
+    try {
+      await handlers.save(document.getElementById('arTitle').value);
+      msg.innerHTML = '<div class="ok">تم حفظ التقرير في الأرشيف.</div>';
+      document.getElementById('arTitle').value = '';
+      await fill();
+    } catch (e) { msg.innerHTML = `<div class="err">${esc(e.message)}</div>`; }
+    finally { sv.disabled = false; sv.textContent = 'حفظ في الأرشيف'; }
+  };
+  document.getElementById('arRefresh').onclick = fill;
+  await fill();
+}
+
 root.SonoRender = { renderSummary, renderKpi, renderRisks, renderRecos, renderPlan, renderData,
-                    renderAiTab, drawRibbon };
+                    renderAiTab, renderArchive, drawRibbon };
 })(window);
