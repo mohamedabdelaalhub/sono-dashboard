@@ -149,6 +149,7 @@ async function fillUsers() {
       <td><span class="badge ${r.active ? 'on' : 'off'}">${r.active ? 'نشط' : 'موقوف'}</span></td>
       <td>${r.linked ? '<span class="badge on">مفعّل</span>' : '<span class="badge pend">بانتظار إنشاء الحساب</span>'}</td>
       <td style="white-space:nowrap">
+        <button class="btn ghost sm uPass" title="إرسال رابط تعيين كلمة سر">كلمة السر</button>
         ${lastSuper ? '' : `<button class="btn ghost sm uTog">${r.active ? 'إيقاف' : 'تفعيل'}</button>
         ${isMe ? '' : '<button class="btn ghost sm uDel" title="حذف">حذف</button>'}`}
       </td></tr>`;
@@ -172,6 +173,21 @@ async function fillUsers() {
       if (!confirm('حذف هذا المستخدم نهائياً من قائمة المصرّح لهم؟')) return;
       try { await removeUser(key); await fillUsers(); msg('uMsg', 'ok', 'تم الحذف.'); }
       catch (e) { msg('uMsg', 'err', e.message); }
+    };
+    const pw = tr.querySelector('.uPass');
+    if (pw) pw.onclick = async () => {
+      const em = tr.children[1].textContent.trim();
+      try {
+        if (AU().mode() === 'supabase') {
+          await AU().sendReset(em);
+          msg('uMsg', 'ok', `تم إرسال رابط تعيين كلمة سر إلى ${em}. قل له يراجع «الرسائل غير المرغوبة».`);
+        } else {
+          if (!confirm(`مسح كلمة سر ${em}؟ سيعيد إنشاءها من «حساب جديد».`)) return;
+          AU().clearLocalPassword(em);
+          await fillUsers();
+          msg('uMsg', 'ok', `تم المسح. اطلب منه فتح اللوحة واختيار «حساب جديد» بنفس البريد.`);
+        }
+      } catch (e) { msg('uMsg', 'err', e.message); }
     };
   });
 }
@@ -315,7 +331,40 @@ function showTab(t) {
     b.setAttribute('aria-selected', b.dataset.c === t ? 'true' : 'false'));
   $('con-users').classList.toggle('hide', t !== 'users');
   $('con-ai').classList.toggle('hide', t !== 'ai');
-  if (t === 'users') renderUsers(); else renderAi();
+  $('con-diag').classList.toggle('hide', t !== 'diag');
+  if (t === 'users') renderUsers();
+  else if (t === 'ai') renderAi();
+  else renderDiag();
+}
+
+/* ============================================================
+   فحص النظام
+   ============================================================ */
+async function renderDiag() {
+  const el = $('con-diag');
+  el.innerHTML = `<h3>فحص النظام</h3>
+    <div class="note">يتأكد من الاتصال بـ Supabase ووجود الجداول والسياسات. استخدمه أول ما تظهر أي مشكلة دخول.</div>
+    <div id="dgOut"><p class="note">جارٍ الفحص…</p></div>
+    <div class="frow" style="margin-top:12px"><button class="btn sm" id="dgRun">إعادة الفحص</button></div>`;
+  $('dgRun').onclick = renderDiag;
+  const out = $('dgOut');
+  try {
+    const rows = await AU().diagnose();
+    const sb = AU().client();
+    if (sb) {
+      try {
+        const { data, error } = await sb.from('admins').select('email,role,active,user_id');
+        if (!error && data)
+          rows.push({ ok: data.length > 0, title: 'المستخدمون المصرّح لهم',
+            detail: data.length
+              ? data.map(d => `${d.email} (${d.role})${d.active ? '' : ' — موقوف'}${d.user_id ? '' : ' — لم ينشئ حسابه بعد'}`).join(' · ')
+              : 'الجدول فارغ — أضف نفسك أولاً.' });
+      } catch (e) {}
+    }
+    out.innerHTML = `<div class="diag">${rows.map(r => `
+      <div class="row"><span class="ic ${r.ok ? 'y' : 'n'}">${r.ok ? '✓' : '✕'}</span>
+        <div><b>${esc(r.title)}</b><span>${esc(r.detail)}</span></div></div>`).join('')}</div>`;
+  } catch (e) { out.innerHTML = `<div class="err">${esc(e.message)}</div>`; }
 }
 
 function init() {

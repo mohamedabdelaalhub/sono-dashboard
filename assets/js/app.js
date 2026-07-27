@@ -24,15 +24,63 @@ function initLanding() {
     : 'وضع الحماية المحلي — للتجربة فقط.<br>فعّل Supabase من ملف <code>config.js</code> قبل النشر العام.';
 
   const tabIn = $('tabIn'), tabUp = $('tabUp');
-  const show = up => {
-    tabIn.setAttribute('aria-pressed', String(!up));
-    tabUp.setAttribute('aria-pressed', String(up));
-    $('loginForm').classList.toggle('hide', up);
-    $('signupForm').classList.toggle('hide', !up);
+  /* الشاشات: login · signup · forgot · reset */
+  const screen = which => {
+    ['loginForm', 'signupForm', 'forgotForm', 'resetForm'].forEach(f =>
+      $(f).classList.toggle('hide', f !== which + 'Form'));
+    const onTabs = which === 'login' || which === 'signup';
+    $('tabIn').parentElement.classList.toggle('hide', !onTabs);
+    tabIn.setAttribute('aria-pressed', String(which === 'login'));
+    tabUp.setAttribute('aria-pressed', String(which === 'signup'));
     clearMsg();
   };
+  const show = up => screen(up ? 'signup' : 'login');
   tabIn.onclick = () => show(false);
   tabUp.onclick = () => show(true);
+  $('toForgot').onclick    = () => screen('forgot');
+  $('backToLogin').onclick = () => screen('login');
+
+  /* نسيت كلمة السر */
+  $('forgotForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = $('fgBtn');
+    clearMsg(); btn.disabled = true; btn.textContent = 'جارٍ الإرسال…';
+    try {
+      await AU.sendReset($('fgEmail').value);
+      showOk('لو البريد مسجّل عندنا هيوصلك رابط التعيين خلال دقيقة. راجع «الرسائل غير المرغوبة» كمان.');
+      screen('login'); showOk('لو البريد مسجّل عندنا هيوصلك رابط التعيين خلال دقيقة. راجع «الرسائل غير المرغوبة» كمان.');
+    } catch (ex) { showErr(ex.message); }
+    finally { btn.disabled = false; btn.textContent = 'إرسال رابط التعيين'; }
+  });
+
+  /* تعيين كلمة سر جديدة بعد فتح رابط البريد */
+  $('resetForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const a = $('rsPass').value, b = $('rsPass2').value;
+    if (a !== b) { showErr('كلمتا السر غير متطابقتين.'); return; }
+    const btn = $('rsBtn');
+    clearMsg(); btn.disabled = true; btn.textContent = 'جارٍ الحفظ…';
+    try {
+      await AU.setNewPassword(a);
+      showOk('تم حفظ كلمة السر. سجّل الدخول بها الآن.');
+      screen('login'); showOk('تم حفظ كلمة السر الجديدة. سجّل الدخول بها الآن.');
+    } catch (ex) { showErr(ex.message); }
+    finally { btn.disabled = false; btn.textContent = 'حفظ كلمة السر'; }
+  });
+
+  /* فحص الاتصال */
+  $('btnDiag').onclick = async () => {
+    const out = $('diagOut');
+    out.innerHTML = '<div class="diag">جارٍ الفحص…</div>';
+    try {
+      const rows = await AU.diagnose();
+      out.innerHTML = `<div class="diag">${rows.map(r => `
+        <div class="row"><span class="ic ${r.ok ? 'y' : 'n'}">${r.ok ? '✓' : '✕'}</span>
+          <div><b>${escHtml(r.title)}</b><span>${escHtml(r.detail)}</span></div></div>`).join('')}</div>`;
+    } catch (e) { out.innerHTML = `<div class="err">${escHtml(e.message)}</div>`; }
+  };
+
+  root.__sonoScreen = screen;
 
   $('loginForm').addEventListener('submit', async e => {
     e.preventDefault();
@@ -60,6 +108,31 @@ function initLanding() {
 function showErr(m) { const e = $('authErr'); e.textContent = m; e.classList.remove('hide'); $('authOk').classList.add('hide'); }
 function showOk(m)  { const e = $('authOk');  e.textContent = m; e.classList.remove('hide'); $('authErr').classList.add('hide'); }
 function clearMsg() { $('authErr').classList.add('hide'); $('authOk').classList.add('hide'); }
+function escHtml(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+/* ============================================================
+   تغيير كلمة السر من داخل اللوحة
+   ============================================================ */
+function initPassword() {
+  const close = () => $('passModal').classList.add('hide');
+  $('btnPass').onclick = () => { $('passMsg').innerHTML = ''; $('passForm').reset(); $('passModal').classList.remove('hide'); };
+  $('passClose').onclick = close;
+  $('passModal').addEventListener('click', e => { if (e.target.id === 'passModal') close(); });
+
+  $('passForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const a = $('cpPass').value, b = $('cpPass2').value;
+    const msg = $('passMsg');
+    if (a !== b) { msg.innerHTML = '<div class="err">كلمتا السر غير متطابقتين.</div>'; return; }
+    const btn = $('cpBtn'); btn.disabled = true; btn.textContent = 'جارٍ الحفظ…';
+    try {
+      await AU.changePassword(a);
+      msg.innerHTML = '<div class="ok">تم تغيير كلمة السر.</div>';
+      $('passForm').reset();
+    } catch (ex) { msg.innerHTML = `<div class="err">${escHtml(ex.message)}</div>`; }
+    finally { btn.disabled = false; btn.textContent = 'حفظ'; }
+  });
+}
 
 /* ============================================================
    الدخول للتطبيق + تطبيق الصلاحيات
@@ -346,11 +419,21 @@ function busy(on, msg) {
    ============================================================ */
 (async function boot() {
   root.SonoBrand.mount();
-  initLanding(); initUpload(); initFilters(); initTabs(); initExport(); AD.init();
+  initLanding(); initUpload(); initFilters(); initTabs(); initExport(); initPassword(); AD.init();
+
+  /* هل فتح المستخدم رابط تعيين كلمة السر من بريده؟ */
+  if (AU.isRecovery()) {
+    root.__sonoScreen('reset');
+    showOk('تم التحقق من الرابط. اختر كلمة سر جديدة.');
+    AU.initSupabase().catch(e => showErr(e.message));   /* بلا انتظار حتى لا تتجمّد الشاشة */
+    return;
+  }
+
   busy(true, 'جارٍ التحقق من الجلسة…');
-  let u = null;
-  try { u = await AU.restore(); } catch (e) {}
+  let u = null, err = null;
+  try { u = await AU.restore(); } catch (e) { err = e; }
   busy(false);
   if (u) await enterApp();
+  else if (err) showErr(err.message);
 })();
 })(window);

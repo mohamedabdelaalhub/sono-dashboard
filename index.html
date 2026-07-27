@@ -72,6 +72,32 @@
             <input type="password" id="pass" name="password" required autocomplete="current-password" dir="ltr">
           </div>
           <button class="btn" type="submit" id="loginBtn">دخول</button>
+          <button type="button" class="linkbtn" id="toForgot">نسيت كلمة السر؟</button>
+        </form>
+
+        <!-- نسيت كلمة السر -->
+        <form id="forgotForm" class="hide">
+          <p class="hint">اكتب بريدك وسنرسل لك رابطاً لتعيين كلمة سر جديدة. راجع صندوق الوارد و«الرسائل غير المرغوبة».</p>
+          <div class="fld">
+            <label for="fgEmail">البريد الإلكتروني</label>
+            <input type="email" id="fgEmail" required autocomplete="username" dir="ltr" placeholder="name@example.com">
+          </div>
+          <button class="btn" type="submit" id="fgBtn">إرسال رابط التعيين</button>
+          <button type="button" class="linkbtn" id="backToLogin">رجوع لتسجيل الدخول</button>
+        </form>
+
+        <!-- تعيين كلمة سر جديدة (بعد فتح رابط البريد) -->
+        <form id="resetForm" class="hide">
+          <p class="hint">اختر كلمة سر جديدة لحسابك.</p>
+          <div class="fld">
+            <label for="rsPass">كلمة السر الجديدة</label>
+            <input type="password" id="rsPass" required minlength="8" autocomplete="new-password" dir="ltr" placeholder="8 أحرف على الأقل">
+          </div>
+          <div class="fld">
+            <label for="rsPass2">تأكيد كلمة السر</label>
+            <input type="password" id="rsPass2" required minlength="8" autocomplete="new-password" dir="ltr">
+          </div>
+          <button class="btn" type="submit" id="rsBtn">حفظ كلمة السر</button>
         </form>
 
         <!-- حساب جديد (للمدعوّين) -->
@@ -93,6 +119,8 @@
         </form>
 
         <div class="foot" id="loginFoot"></div>
+        <button type="button" class="linkbtn quiet" id="btnDiag">فحص الاتصال بالخادم</button>
+        <div id="diagOut"></div>
       </div>
     </section>
 
@@ -120,6 +148,7 @@
       <button class="btn ghost" id="btnPdf"   disabled>تصدير PDF</button>
       <button class="btn ghost" id="btnPrint" disabled>طباعة / حفظ PDF</button>
       <button class="btn ghost icon" id="btnAdmin" title="لوحة التحكم" hidden>⚙</button>
+      <button class="btn ghost" id="btnPass">كلمة السر</button>
       <button class="btn ghost" id="btnOut">خروج</button>
     </div>
   </div>
@@ -196,10 +225,30 @@
     <div class="mtabs">
       <button data-c="users" aria-selected="true">المستخدمون والصلاحيات</button>
       <button data-c="ai"    aria-selected="false">إعدادات الذكاء الاصطناعي</button>
+      <button data-c="diag"  aria-selected="false">فحص النظام</button>
     </div>
     <div class="mbody">
       <div id="con-users"></div>
       <div id="con-ai" class="hide"></div>
+      <div id="con-diag" class="hide"></div>
+    </div>
+  </div>
+</div>
+
+<!-- تغيير كلمة السر من داخل اللوحة -->
+<div id="passModal" class="modal hide">
+  <div class="mbox" style="max-width:420px">
+    <div class="mhead"><h2>تغيير كلمة السر</h2>
+      <button class="btn ghost icon" id="passClose" title="إغلاق">×</button></div>
+    <div class="mbody">
+      <div id="passMsg"></div>
+      <form id="passForm">
+        <div class="fld"><label for="cpPass">كلمة السر الجديدة</label>
+          <input type="password" id="cpPass" required minlength="8" autocomplete="new-password" dir="ltr" placeholder="8 أحرف على الأقل"></div>
+        <div class="fld"><label for="cpPass2">تأكيد كلمة السر</label>
+          <input type="password" id="cpPass2" required minlength="8" autocomplete="new-password" dir="ltr"></div>
+        <button class="btn" type="submit" id="cpBtn">حفظ</button>
+      </form>
     </div>
   </div>
 </div>
