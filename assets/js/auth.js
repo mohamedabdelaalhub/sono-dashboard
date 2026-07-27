@@ -59,7 +59,7 @@ function localAdmins() {
   } catch (e) {}
   const seed = (CFG.localAdmins || []).map(a => ({
     email: lc(a.email), name: a.name || a.email, role: R().normalize(a.role),
-    hash: String(a.hash || '').toLowerCase(), active: true
+    hash: String(a.hash || '').toLowerCase(), active: true, ai_enabled: true
   }));
   localStorage.setItem(LKEY, JSON.stringify(seed));
   return seed;
@@ -86,7 +86,7 @@ async function restore() {
     /* أعد التحقق من القائمة المحلية — قد يكون الدور تغيّر أو أُوقف الحساب */
     const a = localAdmins().find(x => x.email === lc(s.user.email));
     if (!a || a.active === false) { sessionStorage.removeItem('sono_session'); return null; }
-    current = { email: a.email, name: a.name, role: R().normalize(a.role) };
+    current = { email: a.email, name: a.name, role: R().normalize(a.role), aiEnabled: !!a.ai_enabled };
     return current;
   } catch (e) { return null; }
 }
@@ -112,12 +112,19 @@ async function afterAuth(c, u) {
       : `تم التحقق من هويتك، لكن البريد «${em}» غير مُدرَج في قائمة المصرّح لهم. ` +
         'اطلب من السوبر أدمن إضافته من ⚙ لوحة التحكم، ثم أعد تسجيل الدخول.');
   }
-  current = { id: u.id, email: u.email, name: prof.name || u.email, role: R().normalize(prof.role) };
+  current = { id: u.id, email: u.email, name: prof.name || u.email,
+              role: R().normalize(prof.role), aiEnabled: !!prof.ai_enabled };
   return current;
 }
 
 async function fetchProfile(c, uid) {
-  const { data, error } = await c.from('admins').select('id,name,role,active').eq('user_id', uid).maybeSingle();
+  let { data, error } = await c.from('admins')
+    .select('id,name,role,active,ai_enabled').eq('user_id', uid).maybeSingle();
+  /* توافُق مع قاعدة لم تُرقَّ بعد (بدون عمود ai_enabled) */
+  if (error && /ai_enabled/i.test(error.message || '')) {
+    ({ data, error } = await c.from('admins')
+      .select('id,name,role,active').eq('user_id', uid).maybeSingle());
+  }
   if (error || !data) return null;
   return data;
 }
@@ -138,7 +145,7 @@ async function signIn(email, pass) {
   if (a.active === false) throw new Error('حسابك موقوف حالياً. راجع مدير المركز.');
   const h = await root.sonoHash(pass);
   if (h !== String(a.hash).toLowerCase()) throw new Error('كلمة السر غير صحيحة.');
-  current = { email: a.email, name: a.name || a.email, role: R().normalize(a.role) };
+  current = { email: a.email, name: a.name || a.email, role: R().normalize(a.role), aiEnabled: !!a.ai_enabled };
   sessionStorage.setItem('sono_session', JSON.stringify({ user: current, at: Date.now() }));
   return current;
 }
@@ -172,7 +179,7 @@ async function signUp(email, name, pass) {
   a.hash = await root.sonoHash(pass);
   if (name) a.name = name;
   saveLocalAdmins(list);
-  current = { email: a.email, name: a.name, role: R().normalize(a.role) };
+  current = { email: a.email, name: a.name, role: R().normalize(a.role), aiEnabled: !!a.ai_enabled };
   sessionStorage.setItem('sono_session', JSON.stringify({ user: current, at: Date.now() }));
   return { needsConfirm: false };
 }
@@ -189,6 +196,21 @@ async function signOut() {
    ============================================================ */
 function siteUrl() {
   return location.origin + location.pathname.replace(/[^/]*$/, '');
+}
+
+/* دعوة مستخدم: يرسل رابط دخول مباشر ويُنشئ حسابه لو لم يكن موجوداً.
+   يضغط الرابط فيدخل فوراً، ثم يضبط كلمة سره من زر «كلمة السر». */
+async function invite(email) {
+  email = lc(email);
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('اكتب بريداً إلكترونياً صحيحاً.');
+  if (mode() !== 'supabase')
+    throw new Error('الدعوة بالبريد تحتاج تفعيل Supabase. في الوضع المحلي اطلب منه فتح اللوحة واختيار «حساب جديد».');
+  const c = await initSupabase();
+  const { error } = await c.auth.signInWithOtp({
+    email, options: { shouldCreateUser: true, emailRedirectTo: siteUrl() }
+  });
+  if (error) throw new Error(mapErr(error.message));
+  return true;
 }
 
 /* يرسل رابط تعيين كلمة سر جديدة على البريد */
@@ -326,6 +348,6 @@ function mapErr(m) {
 
 root.SonoAuth = { restore, signIn, signUp, signOut, user, mode, client,
                   localAdmins, saveLocalAdmins, lc,
-                  sendReset, isRecovery, setNewPassword, changePassword,
+                  invite, sendReset, isRecovery, setNewPassword, changePassword,
                   clearLocalPassword, diagnose, initSupabase };
 })(window);

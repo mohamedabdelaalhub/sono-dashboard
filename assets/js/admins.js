@@ -16,17 +16,23 @@ async function listUsers() {
   if (AU().mode() !== 'supabase' || !sb) {
     return AU().localAdmins().map(a => ({
       key: a.email, email: a.email, name: a.name, role: a.role,
-      active: a.active !== false, linked: !!a.hash
+      active: a.active !== false, linked: !!a.hash, ai: !!a.ai_enabled
     }));
   }
-  const { data, error } = await sb.from('admins')
-    .select('id,email,name,role,active,user_id').order('created_at', { ascending: true });
+  let { data, error } = await sb.from('admins')
+    .select('id,email,name,role,active,user_id,ai_enabled').order('created_at', { ascending: true });
+  if (error && /ai_enabled/i.test(error.message || '')) {
+    ({ data, error } = await sb.from('admins')
+      .select('id,email,name,role,active,user_id').order('created_at', { ascending: true }));
+    if (!error) hasAiCol = false;
+  }
   if (error) throw new Error(dbErr(error.message));
   return (data || []).map(r => ({
     key: r.id, email: r.email, name: r.name, role: r.role,
-    active: r.active !== false, linked: !!r.user_id
+    active: r.active !== false, linked: !!r.user_id, ai: !!r.ai_enabled
   }));
 }
+let hasAiCol = true;
 
 async function addUser(email, name, role) {
   email = AU().lc(email);
@@ -36,7 +42,7 @@ async function addUser(email, name, role) {
   if (AU().mode() !== 'supabase' || !sb) {
     const list = AU().localAdmins();
     if (list.some(x => x.email === email)) throw new Error('هذا البريد مضاف بالفعل.');
-    list.push({ email, name: name || email, role: RO().normalize(role), hash: '', active: true });
+    list.push({ email, name: name || email, role: RO().normalize(role), hash: '', active: true, ai_enabled: false });
     AU().saveLocalAdmins(list);
     return;
   }
@@ -71,6 +77,8 @@ async function removeUser(key) {
   if (error) throw new Error(dbErr(error.message));
 }
 
+function isSuperRow(r) { return RO().normalize(r.role) === 'سوبر أدمن'; }
+
 function dbErr(m) {
   m = String(m || '');
   if (/relation .* does not exist|schema cache/i.test(m))
@@ -93,7 +101,7 @@ async function renderUsers() {
     <div class="note">
       ${local
         ? 'أنت في الوضع المحلي: المستخدمون محفوظون في هذا المتصفح فقط ولن يظهروا على أجهزة أخرى. فعّل Supabase ليصبح المستخدمون حقيقيين.'
-        : 'أضف البريد والدور. سيدخل الشخص من صفحة الهبوط عبر «حساب جديد» وينشئ كلمة سره بنفسه — لا ترسل له كلمة سر.'}
+        : 'أضف البريد والدور، وسيصله رابط دخول مباشر على بريده. لا ترسل له كلمة سر — هو يضبطها بنفسه بعد أول دخول.'}
     </div>
     <div class="frow">
       <div class="fld"><label for="nuEmail">البريد الإلكتروني</label>
@@ -105,23 +113,33 @@ async function renderUsers() {
       <div class="fld narrow" style="flex:0 0 auto"><label>&nbsp;</label>
         <button class="btn sm" id="nuAdd">إضافة</button></div>
     </div>
+    ${local ? '' : `<label class="toggle" style="margin-bottom:14px">
+      <input type="checkbox" id="nuInvite" checked>
+      <div><b>إرسال دعوة بالبريد فور الإضافة</b>
+        <span>رابط دخول مباشر — يضغطه فيدخل على طول ويضبط كلمة سره من داخل اللوحة، بدل ما يسجّل بنفسه.</span></div>
+    </label>`}
     <div id="uMsg"></div>
 
     <h3 style="margin-top:24px">المستخدمون</h3>
     <div class="note">${RO().list().map(r => `<b>${esc(r.key)}</b>: ${esc(r.desc)}`).join(' &nbsp;·&nbsp; ')}</div>
     <div class="tscroll"><table class="utable">
-      <thead><tr><th>الاسم</th><th>البريد</th><th>الدور</th><th>الحالة</th><th>الحساب</th><th></th></tr></thead>
-      <tbody id="uBody"><tr><td colspan="6" style="color:var(--muted)">جارٍ التحميل…</td></tr></tbody>
+      <thead><tr><th>الاسم</th><th>البريد</th><th>الدور</th><th>تحليل ذكي</th><th>الحالة</th><th>الحساب</th><th></th></tr></thead>
+      <tbody id="uBody"><tr><td colspan="7" style="color:var(--muted)">جارٍ التحميل…</td></tr></tbody>
     </table></div>`;
 
   $('nuAdd').onclick = async () => {
     const em = $('nuEmail').value, nm = $('nuName').value, rl = $('nuRole').value;
     try {
       await addUser(em, nm, rl);
+      let extra = '';
+      if (!local && $('nuInvite').checked) {
+        try { await AU().invite(em); extra = ' وأُرسلت له دعوة برابط دخول مباشر.'; }
+        catch (e) { extra = ' لكن تعذّر إرسال الدعوة: ' + e.message; }
+      }
       $('nuEmail').value = ''; $('nuName').value = '';
-      msg('uMsg', 'ok', local
+      msg('uMsg', 'ok', (local
         ? 'تمت الإضافة. اطلب منه فتح اللوحة على هذا الجهاز واختيار «حساب جديد».'
-        : 'تمت الإضافة. اطلب منه فتح رابط اللوحة واختيار «حساب جديد» بنفس البريد.');
+        : 'تمت الإضافة.' + (extra || ' اطلب منه فتح رابط اللوحة واختيار «حساب جديد» بنفس البريد، أو اضغط «دعوة» جنب اسمه.')) + (local ? '' : ''));
       await fillUsers();
     } catch (e) { msg('uMsg', 'err', e.message); }
   };
@@ -133,7 +151,7 @@ async function fillUsers() {
   const me = AU().user();
   let rows;
   try { rows = await listUsers(); }
-  catch (e) { body.innerHTML = `<tr><td colspan="6"><span class="badge off">${esc(e.message)}</span></td></tr>`; return; }
+  catch (e) { body.innerHTML = `<tr><td colspan="7"><span class="badge off">${esc(e.message)}</span></td></tr>`; return; }
 
   const supers = rows.filter(r => RO().normalize(r.role) === 'سوبر أدمن' && r.active).length;
 
@@ -146,9 +164,13 @@ async function fillUsers() {
       <td><select class="uRole" ${lastSuper ? 'disabled title="لا يمكن تغيير دور آخر سوبر أدمن"' : ''}>
         ${RO().list().map(x => `<option ${RO().normalize(r.role) === x.key ? 'selected' : ''}>${esc(x.key)}</option>`).join('')}
       </select></td>
+      <td style="text-align:center">${isSuperRow(r)
+        ? '<span class="badge on">دائماً</span>'
+        : `<input type="checkbox" class="chk uAi" ${r.ai ? 'checked' : ''} ${hasAiCol ? '' : 'disabled title="شغّل ملف الترقية أولاً"'}>`}</td>
       <td><span class="badge ${r.active ? 'on' : 'off'}">${r.active ? 'نشط' : 'موقوف'}</span></td>
       <td>${r.linked ? '<span class="badge on">مفعّل</span>' : '<span class="badge pend">بانتظار إنشاء الحساب</span>'}</td>
       <td style="white-space:nowrap">
+        ${r.linked ? '' : '<button class="btn ghost sm uInv" title="إرسال رابط دخول مباشر">دعوة</button>'}
         <button class="btn ghost sm uPass" title="إرسال رابط تعيين كلمة سر">كلمة السر</button>
         ${lastSuper ? '' : `<button class="btn ghost sm uTog">${r.active ? 'إيقاف' : 'تفعيل'}</button>
         ${isMe ? '' : '<button class="btn ghost sm uDel" title="حذف">حذف</button>'}`}
@@ -173,6 +195,23 @@ async function fillUsers() {
       if (!confirm('حذف هذا المستخدم نهائياً من قائمة المصرّح لهم؟')) return;
       try { await removeUser(key); await fillUsers(); msg('uMsg', 'ok', 'تم الحذف.'); }
       catch (e) { msg('uMsg', 'err', e.message); }
+    };
+    const ai = tr.querySelector('.uAi');
+    if (ai) ai.onchange = async () => {
+      try {
+        await updateUser(key, AU().mode() === 'supabase' ? { ai_enabled: ai.checked } : { ai_enabled: ai.checked });
+        msg('uMsg', 'ok', ai.checked ? 'تم السماح له بالتحليل الذكي.' : 'تم منعه من التحليل الذكي.');
+      } catch (e) { msg('uMsg', 'err', e.message); ai.checked = !ai.checked; }
+    };
+    const inv = tr.querySelector('.uInv');
+    if (inv) inv.onclick = async () => {
+      const em = tr.children[1].textContent.trim();
+      inv.disabled = true; inv.textContent = 'جارٍ…';
+      try {
+        await AU().invite(em);
+        msg('uMsg', 'ok', `تم إرسال دعوة إلى ${em}. يضغط الرابط في بريده فيدخل مباشرة، ثم يضبط كلمة سره من زر «كلمة السر» داخل اللوحة.`);
+      } catch (e) { msg('uMsg', 'err', e.message); }
+      finally { inv.disabled = false; inv.textContent = 'دعوة'; }
     };
     const pw = tr.querySelector('.uPass');
     if (pw) pw.onclick = async () => {

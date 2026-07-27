@@ -89,17 +89,21 @@ const SYSTEM = `أنت محلل مالي وتشغيلي لمركز طبي في �
 /* ============================================================
    نداء المزوّد
    ============================================================ */
-async function call(cfg, messages, maxTokens) {
+async function call(cfg, messages, maxTokens, _retry) {
   const { provider, model, apiKey } = cfg;
   if (!apiKey) throw new Error('لا يوجد مفتاح ذكاء اصطناعي. اطلب من السوبر أدمن إضافته من ⚙ لوحة التحكم.');
+  const budget = maxTokens || 2000;
 
   let url, headers, body, pick;
   if (provider === 'openai') {
     url = 'https://api.openai.com/v1/chat/completions';
     headers = { 'content-type': 'application/json', authorization: 'Bearer ' + apiKey };
-    body = { model: model || 'gpt-4o', max_tokens: maxTokens || 2000,
+    body = { model: model || 'gpt-4o', max_completion_tokens: budget,
              messages: [{ role: 'system', content: SYSTEM }].concat(messages) };
-    pick = j => j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
+    pick = j => {
+      const c = j.choices && j.choices[0];
+      return (c && c.message && (c.message.content || c.message.refusal)) || '';
+    };
   } else {
     url = 'https://api.anthropic.com/v1/messages';
     headers = {
@@ -108,9 +112,11 @@ async function call(cfg, messages, maxTokens) {
       'anthropic-version': '2023-06-01',
       'anthropic-dangerous-direct-browser-access': 'true'
     };
-    body = { model: model || 'claude-sonnet-5', max_tokens: maxTokens || 2000,
-             system: SYSTEM, messages };
-    pick = j => (j.content || []).filter(c => c.type === 'text').map(c => c.text).join('\n');
+    body = { model: model || 'claude-sonnet-5', max_tokens: budget, system: SYSTEM, messages };
+    /* نأخذ أي كتلة تحمل نصاً، لا كتل type:"text" فقط */
+    pick = j => (j.content || [])
+      .filter(c => c && typeof c.text === 'string' && c.type !== 'thinking')
+      .map(c => c.text).join('\n').trim();
   }
 
   let res;
@@ -124,21 +130,46 @@ async function call(cfg, messages, maxTokens) {
   let j = null; try { j = JSON.parse(txt); } catch (e) {}
 
   if (!res.ok) {
-    const m = (j && j.error && (j.error.message || j.error.type)) || txt.slice(0, 200);
-    if (res.status === 401) throw new Error('المفتاح غير صحيح أو منتهٍ. راجع الإعدادات.');
-    if (res.status === 429) throw new Error('تجاوزت حد الاستخدام أو الرصيد. راجع حسابك لدى المزوّد.');
-    if (res.status === 404) throw new Error('اسم النموذج غير صحيح: «' + (model || '') + '». غيّره من الإعدادات.');
+    const m = (j && j.error && (j.error.message || j.error.type)) || txt.slice(0, 250);
+    if (res.status === 401 || res.status === 403)
+      throw new Error('المفتاح غير صحيح أو منتهٍ أو بلا صلاحية. راجع ⚙ ← إعدادات الذكاء الاصطناعي.');
+    if (res.status === 429)
+      throw new Error('تجاوزت حد الاستخدام أو نفد الرصيد. راجع حسابك لدى المزوّد.');
+    if (res.status === 404 || /model/i.test(m))
+      throw new Error('اسم النموذج «' + (model || '') + '» غير معروف لدى المزوّد. غيّره من ⚙ ← إعدادات الذكاء الاصطناعي.');
+    if (res.status === 400 && /max_tokens|max_completion/i.test(m))
+      throw new Error('حد الكلمات غير مقبول لهذا النموذج: ' + m);
     throw new Error('رفض المزوّد الطلب (' + res.status + '): ' + m);
   }
+
   const out = pick(j);
-  if (!out) throw new Error('جاء رد فارغ من النموذج.');
-  return out;
+  if (out) return out;
+
+  /* رد بلا نص — شخّص السبب بدل رسالة «فارغ» الغامضة */
+  const stop  = (j && j.stop_reason) ||
+                (j && j.choices && j.choices[0] && j.choices[0].finish_reason) || 'غير معروف';
+  const kinds = (j && Array.isArray(j.content) ? j.content.map(c => c.type) : []).join('، ') || 'لا شيء';
+  const usage = j && j.usage ? ` (استُهلك ${j.usage.output_tokens || j.usage.completion_tokens || '?'} كلمة)` : '';
+
+  /* استهلك الحد قبل الكتابة — أعد المحاولة مرة واحدة بحد أكبر */
+  if ((stop === 'max_tokens' || stop === 'length') && !_retry)
+    return await call(cfg, messages, Math.min(budget * 3, 16000), true);
+
+  if (stop === 'max_tokens' || stop === 'length')
+    throw new Error('النموذج استهلك حد الكلمات قبل أن يكتب الرد' + usage +
+                    '. جرّب نموذجاً أخف من ⚙ ← إعدادات الذكاء الاصطناعي.');
+  if (stop === 'refusal' || /refus/i.test(String(stop)))
+    throw new Error('النموذج رفض الرد على هذا الطلب. أعد صياغة السؤال.');
+
+  throw new Error('جاء رد بلا نص من النموذج. سبب التوقف: ' + stop +
+                  ' · نوع المحتوى: ' + kinds + usage +
+                  '. لو تكرر، غيّر اسم النموذج من ⚙ ← إعدادات الذكاء الاصطناعي.');
 }
 
-/* اختبار سريع للمفتاح */
+/* اختبار سريع للمفتاح — الحد مرتفع لأن بعض النماذج تُفكّر قبل أن تكتب */
 async function ping(cfg) {
-  const t = await call(cfg, [{ role: 'user', content: 'رد بكلمة واحدة فقط: تمام' }], 20);
-  return String(t).trim().slice(0, 40);
+  const t = await call(cfg, [{ role: 'user', content: 'رد بكلمة واحدة فقط: تمام' }], 1000);
+  return String(t).trim().slice(0, 60);
 }
 
 /* ============================================================
@@ -167,7 +198,7 @@ async function narrative(A, E, cmp, ctx) {
 البيانات:
 ${JSON.stringify(d, null, 1)}`;
 
-  return await call(cfg, [{ role: 'user', content: prompt }], 2600);
+  return await call(cfg, [{ role: 'user', content: prompt }], 6000);
 }
 
 /* ============================================================
@@ -185,7 +216,7 @@ ${JSON.stringify(d)}
 السؤال: ${question}
 
 جاوب في حدود 200 كلمة، بالأرقام، وبدون مقدمات. لو الإجابة غير موجودة في البيانات قل ذلك بوضوح واذكر ما الذي يلزم إضافته للملف عشان تقدر تجاوب.` });
-  return await call(cfg, msgs, 1200);
+  return await call(cfg, msgs, 3000);
 }
 
 async function resolve() {

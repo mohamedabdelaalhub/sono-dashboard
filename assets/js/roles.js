@@ -29,13 +29,16 @@ function normalize(role) {
 }
 function isSuper(user) { return normalize(user && user.role) === 'سوبر أدمن'; }
 
-/* can(user, 'export') — مع مراعاة مفتاح تشغيل الذكاء الاصطناعي للأدمنز */
+/* can(user, 'export') — التحليل الذكي له ثلاث بوابات:
+   السوبر أدمن دائماً · أو صلاحية فردية للمستخدم · أو المفتاح العام للجميع */
 function can(user, perm) {
   if (!user) return false;
   const p = PERMS[normalize(user.role)] || PERMS['مستخدم'];
   if (perm === 'useAi') {
     if (isSuper(user)) return true;
-    return !!(root.SonoSettings && root.SonoSettings.aiEnabledForAdmins() && p.view);
+    if (!p.view) return false;
+    if (user.aiEnabled) return true;
+    return !!(root.SonoSettings && root.SonoSettings.aiEnabledForAdmins());
   }
   return !!p[perm];
 }
