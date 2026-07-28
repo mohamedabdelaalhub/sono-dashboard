@@ -386,3 +386,109 @@ footer.pg{color:var(--muted);font-size:12px;text-align:center;margin-top:26px;li
   .wrap{max-width:none;padding:0}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+
+/* ============================================================
+   وضع الرفع + بطاقات التقارير
+   ============================================================ */
+.upmode{display:flex;flex-wrap:wrap;gap:14px;align-items:center;background:var(--surface);
+  border-radius:var(--r);box-shadow:var(--shadow);padding:11px 16px;margin-top:12px;font-size:13px}
+.upmode>span{color:var(--muted);font-weight:500}
+.upmode label{display:inline-flex;align-items:center;gap:7px;cursor:pointer}
+.upmode input{accent-color:var(--petrol);width:16px;height:16px;cursor:pointer}
+
+.gsec{font-family:Cairo;font-size:15px;font-weight:700;color:var(--muted);
+  margin:22px 0 10px;padding-right:4px}
+.rchips{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.rchip{background:var(--paper);border:1px solid var(--line);border-radius:11px;padding:8px 13px;
+  font-family:inherit;font-size:12.5px;cursor:pointer;text-align:right;transition:.15s}
+.rchip:hover{border-color:var(--petrol);background:var(--petrol-soft)}
+.rchip span{display:block;font-size:11px;color:var(--muted);margin-top:2px}
+
+.rcard{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);margin-bottom:12px;overflow:hidden}
+.rhead{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:14px 18px;cursor:pointer;user-select:none}
+.rhead:hover{background:#F7F9FA}
+.rhead b{font-family:Cairo;font-size:15px;font-weight:700;display:block}
+.rhead span{font-size:12px;color:var(--muted);display:block;margin-top:2px}
+.rtog{color:var(--muted);font-size:13px;transition:.2s;flex:0 0 auto}
+.rcard.open .rtog{transform:rotate(180deg)}
+.rbody{display:none;padding:0 18px 18px}
+.rcard.open .rbody{display:block}
+
+.rinfo{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
+@media(max-width:820px){.rinfo{grid-template-columns:1fr}}
+.ri{background:var(--paper);border-radius:11px;padding:12px 14px}
+.ri b{display:block;font-family:Cairo;font-size:13px;font-weight:700;color:var(--petrol);margin-bottom:5px}
+.ri p,.ri li{font-size:13px;line-height:1.85}
+.ri ul{padding-right:17px;margin:0}
+.ri.warn{background:#FDF6E8}
+.ri.warn b{color:#7A5408}
+
+.rstats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.rstat{background:var(--paper);border-radius:10px;padding:10px 12px}
+.rstat span{display:block;font-size:11.5px;color:var(--muted)}
+.rstat b{font-family:"IBM Plex Mono",monospace;font-size:17px;font-weight:600;direction:ltr;display:block;text-align:right}
+.rstat i{display:block;font-size:10.5px;color:#8C2A1E;font-style:normal;margin-top:3px}
+.rstat.warn{background:#FDECEA}
+.rsub{font-family:Cairo;font-size:13.5px;font-weight:700;margin:0 0 8px}
+
+/* تفاصيل مهام خطة العمل */
+.tdet{background:var(--paper);border-radius:10px;padding:12px 14px;margin-top:8px;font-size:13px;line-height:1.85}
+.tdet b{display:block;font-family:Cairo;font-size:12.5px;color:var(--petrol);margin:8px 0 4px}
+.tdet b:first-child{margin-top:0}
+.tdet ol{padding-right:18px;margin:0}
+.tbtn{background:none;border:0;color:var(--petrol);font-family:inherit;font-size:12px;
+  cursor:pointer;padding:3px 0 0;font-weight:600}
+.tbtn:hover{text-decoration:underline}
+
+/* ============================================================
+   الموبايل
+   ============================================================ */
+@media(max-width:760px){
+  body{font-size:14.5px}
+  .wrap{padding:16px 12px 48px}
+  .topin{padding:10px 12px;gap:10px;flex-wrap:nowrap}
+  .tstart{gap:10px;flex:1 1 auto;min-width:0;overflow:hidden}
+  .brand b{font-size:13.5px}
+  .brand span{font-size:11px}
+  /* أزرار التصدير تتحول لشريط أفقي قابل للتمرير أسفل الترويسة */
+  .topin{flex-wrap:wrap}
+  .tstart{width:100%;justify-content:space-between}
+  .tstart .topact{order:3;width:100%;flex-wrap:nowrap;overflow-x:auto;gap:6px;
+    padding-bottom:2px;-webkit-overflow-scrolling:touch}
+  .tstart .topact::-webkit-scrollbar{display:none}
+  .topact .btn.ghost{flex:0 0 auto;padding:7px 12px;font-size:12.5px;white-space:nowrap}
+  .usermenu{position:absolute;top:10px;left:12px}
+  header.top{position:relative}
+
+  nav.tabs{padding:4px;gap:2px}
+  nav.tabs button{padding:9px 12px;font-size:12.5px}
+  .kpis{grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:9px}
+  .kpi .val{font-size:21px}
+  .card{padding:15px 14px 14px}
+  .grid2,.grid32{grid-template-columns:1fr;gap:14px}
+  .toolbar{padding:12px;gap:10px}
+  .tgrp select,.tgrp input[type=date]{min-width:130px}
+  .frow .fld{min-width:140px}
+  table{font-size:12px}
+  th,td{padding:6px 5px}
+  .risk,.reco{padding:13px 14px}
+  .risk h3{font-size:14.5px;min-width:0}
+  .risk .mt{gap:10px}
+  .mbox{max-width:100%}
+  .mbody{padding:16px 13px}
+  .mtabs{padding:10px 13px 0;overflow-x:auto}
+  .mtabs button{white-space:nowrap;padding:8px 10px;font-size:12.5px}
+  .modal{padding:14px 8px}
+  .score{gap:12px}
+  .msg{max-width:94%}
+  .lhero{padding:30px 20px}
+  .lauth{padding:28px 18px}
+  .upmode{font-size:12.5px;gap:10px}
+}
+@media(max-width:420px){
+  .rstats{grid-template-columns:1fr 1fr}
+  .kpis{grid-template-columns:1fr 1fr}
+  .uname{display:none}
+}

@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/styles.css?v=5">
+<link rel="stylesheet" href="assets/css/styles.css?v=6">
 </head>
 <body>
 
@@ -182,6 +182,11 @@
     <span>يقبل ‎.xlsx‎ و‎.xls‎ و‎.csv‎ و‎.pdf‎ — ارفع أكثر من ملف معاً: شهور مختلفة للمقارنة، أو تقارير متكاملة لنفس الفترة (خزينة + بيان حالة)</span>
     <input type="file" id="file" accept=".xlsx,.xls,.csv,.pdf" multiple hidden>
   </div>
+  <div class="upmode" id="upMode">
+    <span>عند رفع أكثر من ملف:</span>
+    <label><input type="radio" name="upm" value="merge" checked> ادمجهم في تحليل واحد</label>
+    <label><input type="radio" name="upm" value="compare"> قارن بينهم كفترات منفصلة</label>
+  </div>
   <div class="files" id="fileChips"></div>
 
   <div class="toolbar hide" id="toolbar">
@@ -214,6 +219,7 @@
     <button role="tab" data-t="rec"  aria-selected="false">التوصيات <span class="cnt" id="cRec">0</span></button>
     <button role="tab" data-t="plan" aria-selected="false">خطة العمل <span class="cnt" id="cPlan">0</span></button>
     <button role="tab" data-t="ai"   aria-selected="false" id="tabAi">التحليل الذكي</button>
+    <button role="tab" data-t="rep" aria-selected="false" id="tabRep" class="hide">التقارير المرفوعة <span class="cnt" id="cRep">0</span></button>
     <button role="tab" data-t="cmp" aria-selected="false" id="tabCmp" class="hide">المقارنة</button>
     <button role="tab" data-t="arch" aria-selected="false" id="tabArch">الأرشيف</button>
     <button role="tab" data-t="data" aria-selected="false" id="tabData">البيانات التفصيلية</button>
@@ -230,6 +236,7 @@
     <section class="tabpane hide" id="pane-rec"></section>
     <section class="tabpane hide" id="pane-plan"></section>
     <section class="tabpane hide" id="pane-ai"></section>
+    <section class="tabpane hide" id="pane-rep"></section>
     <section class="tabpane hide" id="pane-cmp"></section>
     <section class="tabpane hide" id="pane-arch"></section>
     <section class="tabpane hide" id="pane-data"></section>
@@ -286,23 +293,26 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
-<script src="config.js?v=5"></script>
-<script src="assets/js/brand.js?v=5"></script>
-<script src="assets/js/roles.js?v=5"></script>
-<script src="assets/js/parser.js?v=5"></script>
-<script src="assets/js/parser-status.js?v=5"></script>
-<script src="assets/js/parser-pdf.js?v=5"></script>
-<script src="assets/js/analytics.js?v=5"></script>
-<script src="assets/js/rules.js?v=5"></script>
-<script src="assets/js/charts.js?v=5"></script>
-<script src="assets/js/render.js?v=5"></script>
-<script src="assets/js/exporters.js?v=5"></script>
-<script src="assets/js/settings.js?v=5"></script>
-<script src="assets/js/auth.js?v=5"></script>
-<script src="assets/js/admins.js?v=5"></script>
-<script src="assets/js/ai.js?v=5"></script>
-<script src="assets/js/archive.js?v=5"></script>
-<script src="assets/js/compare.js?v=5"></script>
-<script src="assets/js/app.js?v=5"></script>
+<script src="config.js?v=6"></script>
+<script src="assets/js/brand.js?v=6"></script>
+<script src="assets/js/roles.js?v=6"></script>
+<script src="assets/js/parser.js?v=6"></script>
+<script src="assets/js/parser-status.js?v=6"></script>
+<script src="assets/js/reports.js?v=6"></script>
+<script src="assets/js/parser-auto.js?v=6"></script>
+<script src="assets/js/parser-pdf.js?v=6"></script>
+<script src="assets/js/analytics.js?v=6"></script>
+<script src="assets/js/rules.js?v=6"></script>
+<script src="assets/js/charts.js?v=6"></script>
+<script src="assets/js/render.js?v=6"></script>
+<script src="assets/js/render-reports.js?v=6"></script>
+<script src="assets/js/exporters.js?v=6"></script>
+<script src="assets/js/settings.js?v=6"></script>
+<script src="assets/js/auth.js?v=6"></script>
+<script src="assets/js/admins.js?v=6"></script>
+<script src="assets/js/ai.js?v=6"></script>
+<script src="assets/js/archive.js?v=6"></script>
+<script src="assets/js/compare.js?v=6"></script>
+<script src="assets/js/app.js?v=6"></script>
 </body>
 </html>

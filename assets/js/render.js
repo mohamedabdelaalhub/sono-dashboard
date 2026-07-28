@@ -413,15 +413,35 @@ function renderPlan(el, A, E, ctx) {
         <tr data-k="${esc(t.t)}" class="${done[t.t] ? 'done' : ''}">
           <td><input type="checkbox" class="chk" ${done[t.t] ? 'checked' : ''}></td>
           <td class="n">${t.n}</td>
-          <td><b>${esc(t.t)}</b><div style="font-size:11.5px;color:var(--muted);margin-top:2px">${esc(t.area)}</div></td>
+          <td><b>${esc(t.t)}</b><div style="font-size:11.5px;color:var(--muted);margin-top:2px">${esc(t.area)}</div>
+            ${(t.why || (t.steps && t.steps.length)) ? `<button type="button" class="tbtn noprint">التفاصيل وخطوات التنفيذ ▾</button>` : ''}</td>
           <td>${esc(t.own)}</td>
           <td class="pr">أسبوع ${esc(t.wk)}</td>
           <td>${esc(t.kpi)}</td>
           <td class="n">${esc(t.tgt)}</td>
           <td><span class="prio p${t.pr}">${t.pr}</span></td>
-        </tr>`).join('') || '<tr><td colspan="8" class="note">لا مهام بهذا الفلتر.</td></tr>'}</tbody>
+        </tr>
+        <tr class="tdrow hide"><td></td><td colspan="7">
+          <div class="tdet">
+            ${t.risk ? `<b>سبب هذه المهمة</b><div>${esc(t.risk)}</div>` : ''}
+            ${t.why ? `<b>ما الذي رصدناه</b><div>${esc(t.why)}</div>` : ''}
+            ${t.steps && t.steps.length ? `<b>خطوات التنفيذ المقترحة</b>
+              <ol>${t.steps.map(x => `<li>${esc(x)}</li>`).join('')}</ol>` : ''}
+            <b>كيف تعرف أنك نجحت</b>
+            <div>${esc(t.kpi)} — المستهدف <b style="display:inline">${esc(t.tgt)}</b>${t.metric ? ` · القيمة الحالية ${esc(t.value)}` : ''}</div>
+            ${t.impact > 0 ? `<b>الأثر المالي التقديري</b><div>${fmt(t.impact)} جنيه</div>` : ''}
+          </div>
+        </td></tr>`).join('') || '<tr><td colspan="8" class="note">لا مهام بهذا الفلتر.</td></tr>'}</tbody>
     </table></div>`;
 
+    wrap.querySelectorAll('.tbtn').forEach(b => b.onclick = e => {
+      e.stopPropagation();
+      const det = b.closest('tr').nextElementSibling;
+      if (!det) return;
+      const open = !det.classList.contains('hide');
+      det.classList.toggle('hide', open);
+      b.textContent = open ? 'التفاصيل وخطوات التنفيذ ▾' : 'إخفاء التفاصيل ▴';
+    });
     wrap.querySelectorAll('.chk').forEach(c => c.addEventListener('change', e => {
       const tr = e.target.closest('tr'), k = tr.dataset.k;
       const d = JSON.parse(localStorage.getItem('sono_done') || '{}');

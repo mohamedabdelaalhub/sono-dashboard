@@ -894,17 +894,31 @@ function evaluate(A, cmp) {
   /* خطة العمل: مهام المخاطر المفعّلة + المهام الأساسية، مرتبة بالأولوية */
   const seen = new Set();
   let plan = [];
+  const recoById = {};
+  recos.forEach(x => recoById[x.riskId] = x);
   risks.forEach(r => {
     const f = PLAN[r.id];
     if (!f) return;
+    const rc = recoById[r.id];
     f(ctx).forEach(t => {
       const key = t.t;
       if (seen.has(key)) return;
       seen.add(key);
-      plan.push(Object.assign({}, t, { area: r.area, riskId: r.id, sev: r.sev }));
+      plan.push(Object.assign({}, t, {
+        area: r.area, riskId: r.id, sev: r.sev,
+        /* الشرح: سبب المهمة من المخاطرة، والخطوات من التوصية المرتبطة */
+        why  : r.finding,
+        risk : r.title,
+        metric: r.metric, value: r.value, target: r.target,
+        impact: r.impact || 0,
+        steps: rc ? rc.steps : []
+      }));
     });
   });
-  BASELINE(ctx).forEach(t => { if (!seen.has(t.t)) { seen.add(t.t); plan.push(Object.assign({}, t, { area: 'الحوكمة', riskId: 'baseline', sev: 'low' })); } });
+  BASELINE(ctx).forEach(t => { if (!seen.has(t.t)) { seen.add(t.t);
+    plan.push(Object.assign({}, t, { area: 'الحوكمة', riskId: 'baseline', sev: 'low',
+      why: 'مهمة حوكمة دائمة لا ترتبط بمخاطرة بعينها — وجودها يمنع تكرار المشاكل.',
+      risk: '', steps: [] })); } });
   plan.sort((a, b) => a.pr - b.pr);
   plan = plan.map((t, i) => Object.assign({ n: i + 1 }, t));
 

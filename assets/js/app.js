@@ -21,7 +21,7 @@ const NOOP = new Proxy({}, {
 });
 const $ = id => document.getElementById(id) || (console.warn('عنصر غير موجود:', id), NOOP);
 const state = {
-  files: [], income: [], expense: [], status: [],
+  files: [], income: [], expense: [], status: [], datasets: [],
   A: null, E: null, cmp: null, C: null, cSources: null, tab: 'sum',
   ctx: { clinic: CFG.clinicName || '', branch: CFG.branchName || '' }
 };
@@ -205,9 +205,9 @@ function initUpload() {
 }
 
 function clearAll() {
-  state.files = []; state.income = []; state.expense = []; state.status = [];
+  state.files = []; state.income = []; state.expense = []; state.status = []; state.datasets = [];
   state.A = null; state.C = null; state.cSources = null;
-  $('tabCmp').classList.add('hide');
+  $('tabCmp').classList.add('hide'); $('tabRep').classList.add('hide');
   renderChips(); $('toolbar').classList.add('hide');
   document.querySelectorAll('.tabpane').forEach(p => { p.classList.add('hide'); p.innerHTML = ''; });
   Object.keys(RENDERED).forEach(k => delete RENDERED[k]);
@@ -256,9 +256,23 @@ async function handleFiles(list) {
         continue;
       }
 
-      /* ٢) وإلا فهو تقرير حركة خزينة */
+      /* ٢) تقرير حركة خزينة */
       const r = P.parseWorkbook(wb, f.name);
       r.warnings.forEach(w => warnings.push(f.name + ': ' + w));
+      if (r.income.length || r.expense.length) {
+        state.files.push({ name: f.name, kind: 'treasury', income: r.income, expense: r.expense, status: [] });
+        continue;
+      }
+
+      /* ٣) أي تقرير آخر من نظام المركز */
+      const au = root.SonoAuto ? root.SonoAuto.parse(wb, f.name) : null;
+      if (au) {
+        state.datasets.push(au);
+        state.files.push({ name: f.name, kind: 'report', reportId: au.id, reportName: au.name,
+                           income: [], expense: [], status: [], rows: au.rows.length });
+        continue;
+      }
+
       if (!r.income.length && !r.expense.length) {
         warnings.push(`${f.name}: لم يُتعرَّف على شكل هذا الملف.\n` +
           '   • تقرير الخزينة يحتاج أعمدة: التاريخ · السعر · البيان\n' +
@@ -266,7 +280,6 @@ async function handleFiles(list) {
           '   تأكد أن أسماء الأعمدة في صف واحد وبلا صفوف فارغة بينها.');
         continue;
       }
-      state.files.push({ name: f.name, kind: 'treasury', income: r.income, expense: r.expense, status: [] });
     }
     rebuild();
     if (warnings.length) alert('ملاحظات القراءة:\n\n' + warnings.join('\n'));
@@ -277,7 +290,7 @@ async function handleFiles(list) {
 
 function renderChips() {
   $('fileChips').innerHTML = state.files.map((f, i) => `
-    <span class="chip">${f.name} · ${f.kind === 'status' ? 'بيان حالة' : 'خزينة'}${f.src === 'pdf' ? ' · PDF' : ''} · ${(f.income.length + f.expense.length) || (f.status || []).length} سطر
+    <span class="chip">${f.name} · ${f.kind === 'report' ? f.reportName : f.kind === 'status' ? 'بيان حالة' : 'خزينة'}${f.src === 'pdf' ? ' · PDF' : ''} · ${(f.income.length + f.expense.length) || (f.status || []).length || f.rows || 0} سطر
       <button data-i="${i}" title="إزالة">×</button></span>`).join('');
   $('fileChips').querySelectorAll('button').forEach(b => b.onclick = () => {
     state.files.splice(+b.dataset.i, 1); rebuild();
@@ -400,6 +413,27 @@ function rebuild() {
   renderChips();
   if (!state.files.length) { clearAll(); return; }
   mergeAll();
+
+  /* تاب التقارير المرفوعة */
+  const hasDs = state.datasets.length > 0;
+  $('tabRep').classList.toggle('hide', !hasDs);
+  $('cRep').textContent = state.datasets.length;
+  delete RENDERED.rep;
+
+  /* لا توجد بيانات خزينة؟ اعرض التقارير مباشرة */
+  if (!state.income.length && !state.expense.length && !state.status.length && hasDs) {
+    $('welcome').classList.add('hide');
+    $('toolbar').classList.add('hide');
+    $('tabs').classList.remove('hide');
+    renderTab('rep');
+    return;
+  }
+
+  /* وضع المقارنة: كل ملف فترة مستقلة */
+  const mode = (document.querySelector('input[name=upm]:checked') || {}).value;
+  if (mode === 'compare' && state.files.filter(f => f.income.length || f.expense.length).length > 1) {
+    try { compareUploadedFiles(); return; } catch (e) { alert(e.message || e); }
+  }
   $('welcome').classList.add('hide');
   $('toolbar').classList.remove('hide');
   $('tabs').classList.remove('hide');
@@ -414,7 +448,8 @@ function rebuild() {
    التابات
    ============================================================ */
 const PANES = { sum: 'pane-sum', kpi: 'pane-kpi', risk: 'pane-risk', rec: 'pane-rec',
-                plan: 'pane-plan', ai: 'pane-ai', cmp: 'pane-cmp', arch: 'pane-arch', data: 'pane-data' };
+                plan: 'pane-plan', ai: 'pane-ai', rep: 'pane-rep', cmp: 'pane-cmp',
+                arch: 'pane-arch', data: 'pane-data' };
 const RENDERED = {};
 
 function initTabs() {
@@ -424,6 +459,16 @@ function initTabs() {
 
 function renderTab(t, force) {
   const u = AU.user();
+  if (t === 'rep') {
+    state.tab = t; markTabs(t); showPane(t);
+    $('welcome').classList.add('hide');
+    if (!RENDERED.rep) {
+      root.SonoRenderReports.render($(PANES.rep), state.datasets);
+      root.SonoRenderReports.drawCharts($(PANES.rep), state.datasets);
+      RENDERED.rep = 1;
+    }
+    return;
+  }
   if (t === 'cmp') {
     state.tab = t; markTabs(t); showPane(t);
     $('welcome').classList.add('hide');
@@ -477,6 +522,18 @@ function showComparison(C, sources, title) {
     : null);
   RENDERED.cmp = 1; state.tab = 'cmp';
   $('tabCmp').classList.remove('hide');
+}
+
+/* مقارنة كل ملف مرفوع كفترة مستقلة */
+function compareUploadedFiles() {
+  const fs = state.files.filter(f => f.income.length || f.expense.length);
+  if (fs.length < 2) throw new Error('وضع المقارنة يحتاج ملفين على الأقل بهما بيانات خزينة.');
+  const loaded = fs.map(f => {
+    const A = AN.analyze(f.income, f.expense, {});
+    A.status = null;
+    return { label: f.name.replace(/\.(xlsx|xls|csv|pdf)$/i, ''), A, E: RU.evaluate(A, null) };
+  });
+  showComparison(root.SonoCompare.build(loaded), loaded.map(l => l.label));
 }
 
 /* مقارنة الفترات داخل الملفات المرفوعة حالياً */
@@ -611,8 +668,9 @@ function initExport() {
    تصدير PDF: التاب المعروض أو كل التابات
    ============================================================ */
 const TAB_NAMES = { sum: 'ملخص التقرير', kpi: 'المؤشرات', risk: 'المخاطر', rec: 'التوصيات',
-                    plan: 'خطة العمل', ai: 'التحليل الذكي', data: 'البيانات التفصيلية' };
-const PDF_ORDER = ['sum', 'kpi', 'risk', 'rec', 'plan', 'ai', 'data'];
+                    plan: 'خطة العمل', ai: 'التحليل الذكي', rep: 'التقارير المرفوعة',
+                    data: 'البيانات التفصيلية' };
+const PDF_ORDER = ['sum', 'kpi', 'risk', 'rec', 'plan', 'ai', 'rep', 'data'];
 
 async function exportPdf(scope) {
   /* تقرير مقارنة معروض */
@@ -657,7 +715,8 @@ async function exportPdf(scope) {
     const nodes = [];
     for (const t of PDF_ORDER) {
       if (t === 'data' && !RO.can(u, 'data')) continue;
-      if (t === 'ai') {
+      if (t === 'rep') { if (!RENDERED.rep) continue; }
+      else if (t === 'ai') {
         /* لا نُدرج التحليل الذكي إلا إذا كان مولَّداً فعلاً */
         const has = RENDERED.ai && $(PANES.ai).querySelector('.aimd');
         if (!has) continue;
