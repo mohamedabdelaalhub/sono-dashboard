@@ -67,11 +67,13 @@ function analyze(income, expense, meta) {
   const net     = revenue - cost;
 
   /* --- الفترة الزمنية --- */
-  const dates = uniq(income.concat(expense).map(r => r.date)).sort();
+  /* بعض التقارير بلا عمود تاريخ: نستبعدها من السلاسل الزمنية ونُبقيها في الإجماليات */
+  const isDate = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
+  const dates = uniq(income.concat(expense).map(r => r.date).filter(isDate)).sort();
   const from  = dates[0] ? dparse(dates[0]) : null;
   const to    = dates[dates.length - 1] ? dparse(dates[dates.length - 1]) : null;
   const spanDays  = from && to ? dayDiff(from, to) + 1 : 0;
-  const activeDays = uniq(income.map(r => r.date)).length;
+  const activeDays = uniq(income.map(r => r.date).filter(isDate)).length || (dates.length || 1);
 
   /* --- المرضى والإيصالات --- */
   const patKey = r => (r.fileNo && r.fileNo !== '0' ? 'F' + r.fileNo : 'N' + P.normAr(r.patient));
@@ -90,13 +92,17 @@ function analyze(income, expense, meta) {
     o.rev += r.amount; if (r.receipt) o.rcpt.add(r.receipt); o.pat.add(patKey(r)); });
   expense.forEach(r => { const o = dayMap.get(r.date); if (o) o.exp += r.amount; });
   const daily = [...dayMap.values()].sort((a, b) => a.date.localeCompare(b.date))
-    .map(o => ({ date: o.date, rev: o.rev, exp: o.exp, net: o.rev - o.exp,
-                 rcpt: o.rcpt.size, pat: o.pat.size,
-                 dow: DOW_AR[dparse(o.date).getDay()] }));
+    .map(o => {
+      const d = dparse(o.date);
+      return { date: o.date, rev: o.rev, exp: o.exp, net: o.rev - o.exp,
+               rcpt: o.rcpt.size, pat: o.pat.size,
+               dow: isNaN(d) ? '—' : DOW_AR[d.getDay()] };
+    });
 
   /* --- الأسبوعي --- */
   const wkMap = new Map();
   daily.forEach(d => {
+    if (!isDate(d.date)) return;
     const k = periodKey(d.date, 'week');
     const o = wkMap.get(k) || { key: k, label: periodLabel(k), rev: 0, exp: 0, rcpt: 0, days: 0 };
     o.rev += d.rev; o.exp += d.exp; o.rcpt += d.rcpt; o.days++;
@@ -107,7 +113,11 @@ function analyze(income, expense, meta) {
 
   /* --- حسب يوم الأسبوع --- */
   const dowAgg = DOW_AR.map(n => ({ dow: n, rev: 0, rcpt: 0, days: 0 }));
-  daily.forEach(d => { const o = dowAgg[DOW_AR.indexOf(d.dow)]; o.rev += d.rev; o.rcpt += d.rcpt; o.days++; });
+  daily.forEach(d => {
+    const o = dowAgg[DOW_AR.indexOf(d.dow)];
+    if (!o) return;                       /* تاريخ غير صالح */
+    o.rev += d.rev; o.exp = (o.exp || 0) + d.exp; o.rcpt += d.rcpt; o.days++;
+  });
   dowAgg.forEach(o => { o.avg = o.days ? o.rev / o.days : 0; });
 
   /* --- طرق الدفع --- */

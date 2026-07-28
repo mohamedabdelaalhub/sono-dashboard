@@ -14,7 +14,7 @@ function stamp() {
 /* ============================================================
    Excel — كل قسم في شيت مستقل، باتجاه من اليمين لليسار
    ============================================================ */
-function toXlsx(A, E, ctx) {
+function toXlsx(A, E, ctx, datasets) {
   const wb = XLSX.utils.book_new();
   wb.Workbook = { Views: [{ RTL: true }] };
   const k = A.kpi;
@@ -128,7 +128,48 @@ function toXlsx(A, E, ctx) {
     ...A.unclassifiedRows.map(r => [r.date, r.bayan, r.note, r0(r.amount)])
   ], [13, 34, 44, 12]);
 
+  /* شيت لكل تقرير مرفوع */
+  addDatasetSheets(wb, datasets, add);
+
   XLSX.writeFile(wb, `تقرير-سونو-${stamp()}.xlsx`, { compression: true });
+}
+
+/* ============================================================
+   تصدير التقارير المرفوعة وحدها (حين لا يوجد تحليل خزينة)
+   ============================================================ */
+const RLBL = () => (root.SonoRenderReports && root.SonoRenderReports.LABEL) || {};
+function addDatasetSheets(wb, datasets, add) {
+  const L = RLBL();
+  const used = new Set(wb.SheetNames.map(n => n));
+  (datasets || []).forEach((ds, i) => {
+    if (!ds.rows || !ds.rows.length) return;
+    const cols = ds.columns.filter(c => c !== '_row');
+    let nm = ds.name.slice(0, 28);
+    let k = 1; while (used.has(nm)) nm = ds.name.slice(0, 25) + ' ' + (++k);
+    used.add(nm);
+    add(nm, [
+      cols.map(c => L[c] || c),
+      ...ds.rows.map(r => cols.map(c => r[c] === null || r[c] === undefined ? '' : r[c]))
+    ], cols.map(c => ['service', 'name', 'item', 'desc', 'patient', 'account'].includes(c) ? 40 : 15));
+  });
+}
+
+function datasetsXlsx(datasets, ctx) {
+  const wb = XLSX.utils.book_new();
+  wb.Workbook = { Views: [{ RTL: true }] };
+  const add = (name, rows, widths) => {
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = (widths || []).map(w => ({ wch: w }));
+    XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 31));
+  };
+  add('الفهرس', [
+    [ctx.clinic], [ctx.branch],
+    ['تاريخ التصدير', new Date().toLocaleString('ar-EG')], [],
+    ['التقرير', 'المجال', 'الملف', 'عدد السطور'],
+    ...(datasets || []).map(d => [d.name, d.group || '', d.file, (d.rows || []).length])
+  ], [34, 16, 34, 12]);
+  addDatasetSheets(wb, datasets, add);
+  XLSX.writeFile(wb, `تقارير-سونو-${stamp()}.xlsx`, { compression: true });
 }
 
 /* ============================================================
@@ -414,5 +455,5 @@ function planXlsx(plan, ctx, owner) {
                  { compression: true });
 }
 
-root.SonoExport = { toXlsx, toPdf, toPdfFromNodes, planXlsx };
+root.SonoExport = { toXlsx, toPdf, toPdfFromNodes, planXlsx, datasetsXlsx };
 })(window);

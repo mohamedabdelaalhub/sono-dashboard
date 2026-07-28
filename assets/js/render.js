@@ -23,6 +23,14 @@ function delta(d, invert) {
 function renderSummary(el, A, E, cmp) {
   const k = A.kpi;
   el.innerHTML = `
+    ${A.dupWarn ? `<div class="notice">
+      <h3>تنبيه: أكثر من تقرير يصف نفس الإيراد</h3>
+      <ul>
+        <li><span>—</span><div>رفعت ${A.dupWarn.length} تقارير فيها مبالغ إيراد:
+          <b>${A.dupWarn.map(esc).join('، ')}</b>.</div></li>
+        <li><span>—</span><div>هذه التقارير تصف <b>نفس الأموال من زوايا مختلفة</b>، فجمعها معاً يضاعف الإيراد ويجعل الأرقام أعلى من الحقيقة.</div></li>
+        <li><span>—</span><div>للحصول على رقم صحيح: ارفع <b>مصدر إيراد واحد</b> في المرة (تقرير الخزينة أو بيان الحالة أو كشف الحساب)، ومعه تقارير المصروفات والمرجعية.</div></li>
+      </ul></div>` : ''}
     <div class="card">
       <div class="score">
         <div class="gauge" id="gg"></div>

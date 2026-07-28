@@ -206,6 +206,7 @@ function initUpload() {
 
 function clearAll() {
   state.files = []; state.income = []; state.expense = []; state.status = []; state.datasets = [];
+  state.adapted = null;
   state.A = null; state.C = null; state.cSources = null;
   $('tabCmp').classList.add('hide'); $('tabRep').classList.add('hide');
   renderChips(); $('toolbar').classList.add('hide');
@@ -258,8 +259,8 @@ async function handleFiles(list) {
 
       /* ٢) تقرير حركة خزينة */
       const r = P.parseWorkbook(wb, f.name);
-      r.warnings.forEach(w => warnings.push(f.name + ': ' + w));
       if (r.income.length || r.expense.length) {
+        r.warnings.forEach(w => warnings.push(f.name + ': ' + w));
         state.files.push({ name: f.name, kind: 'treasury', income: r.income, expense: r.expense, status: [] });
         continue;
       }
@@ -273,13 +274,9 @@ async function handleFiles(list) {
         continue;
       }
 
-      if (!r.income.length && !r.expense.length) {
-        warnings.push(`${f.name}: لم يُتعرَّف على شكل هذا الملف.\n` +
-          '   • تقرير الخزينة يحتاج أعمدة: التاريخ · السعر · البيان\n' +
-          '   • تقرير بيان الحالة يحتاج أعمدة: الخدمة · الكمية · الصافي أو الخصم\n' +
-          '   تأكد أن أسماء الأعمدة في صف واحد وبلا صفوف فارغة بينها.');
-        continue;
-      }
+      warnings.push(`${f.name}: لم يُتعرَّف على شكل هذا الملف.\n` +
+        '   تأكد أن أسماء الأعمدة في صف واحد وبلا صفوف فارغة بينها،\n' +
+        '   وأن الملف مُصدَّر من نظام المركز بلا تعديل يدوي على الترويسة.');
     }
     rebuild();
     if (warnings.length) alert('ملاحظات القراءة:\n\n' + warnings.join('\n'));
@@ -313,6 +310,16 @@ function mergeAll() {
       const k = [r.doctor, r.service, r.qty, r.net, r.gross].join('¦');
       if (seenS.has(k)) return; seenS.add(k); sta.push(r);
     });
+  });
+  /* حوّل التقارير المتعرَّف عليها إلى إيراد/مصروف قياسي */
+  state.adapted = root.SonoAdapters ? root.SonoAdapters.apply(state.datasets) : { income: [], expense: [], used: [], skipped: [] };
+  state.adapted.income.forEach(r => {
+    const k = ['A', r.date, r.amount, r.receipt, r.fileNo, r.services.join('|')].join('¦');
+    if (seenI.has(k)) return; seenI.add(k); inc.push(r);
+  });
+  state.adapted.expense.forEach(r => {
+    const k = ['A', r.date, r.amount, r.bayan, r.voucher].join('¦');
+    if (seenE.has(k)) return; seenE.add(k); exp.push(r);
   });
   state.income = inc; state.expense = exp; state.status = sta;
   /* فترة تقرير بيان الحالة — يُستخدم عند غياب بيانات الخزينة */
@@ -396,6 +403,7 @@ function applyPeriod() {
       state.E = RU.evaluate(state.A, state.cmp);
       $('cmpLbl').textContent = s.prevLabel ? 'مقابل ' + s.prevLabel
         : (s.prev ? 'مقابل الفترة السابقة' : 'لا توجد فترة سابقة للمقارنة');
+      state.A.dupWarn = state.dupWarn;
       $('cRisk').textContent = state.E.risks.length;
       $('cRec').textContent  = state.E.recos.length;
       $('cPlan').textContent = state.E.plan.length;
@@ -416,11 +424,19 @@ function rebuild() {
 
   /* تاب التقارير المرفوعة */
   const hasDs = state.datasets.length > 0;
+  if (hasDs) {
+    const u0 = AU.user();
+    ['btnXlsx', 'btnPdf', 'btnPrint'].forEach(b => $(b).disabled = !RO.can(u0, 'export'));
+  }
   $('tabRep').classList.toggle('hide', !hasDs);
   $('cRep').textContent = state.datasets.length;
   delete RENDERED.rep;
 
-  /* لا توجد بيانات خزينة؟ اعرض التقارير مباشرة */
+  /* تحذير الازدواج: أكثر من تقرير يصف نفس الإيراد */
+  const revSrc = (state.adapted.used || []).filter(u => u.income > 0);
+  state.dupWarn = revSrc.length > 1 ? revSrc.map(u => u.name) : null;
+
+  /* لا توجد أي بيانات قابلة للتحليل؟ اعرض التقارير فقط */
   if (!state.income.length && !state.expense.length && !state.status.length && hasDs) {
     $('welcome').classList.add('hide');
     $('toolbar').classList.add('hide');
@@ -622,11 +638,15 @@ function draw(t, el) {
    ============================================================ */
 function initExport() {
   $('btnXlsx').addEventListener('click', () => {
-    if (!state.A || !gate('export')) return;
+    if (!gate('export')) return;
+    if (!state.A && !state.datasets.length) { alert('لا يوجد محتوى للتصدير.'); return; }
     busy(true, 'جارٍ بناء ملف الإكسل…');
     setTimeout(() => {
-      try { EX.toXlsx(state.A, state.E, state.ctx); }
-      catch (e) { alert('تعذّر التصدير: ' + (e.message || e)); }
+      try {
+        if (state.A) EX.toXlsx(state.A, state.E, state.ctx, state.datasets);
+        else EX.datasetsXlsx(state.datasets, state.ctx);
+      }
+      catch (e) { console.error(e); alert('تعذّر التصدير: ' + (e.message || e)); }
       finally { busy(false); }
     }, 30);
   });
@@ -634,7 +654,8 @@ function initExport() {
   /* ---------- قائمة تصدير PDF ---------- */
   const menu = $('pdfMenu');
   $('btnPdf').addEventListener('click', e => {
-    if (!state.A || !gate('export')) return;
+    if (!gate('export')) return;
+    if (!state.A && !state.datasets.length) { alert('لا يوجد محتوى للتصدير.'); return; }
     e.stopPropagation();
     menu.classList.toggle('hide');
   });
@@ -646,8 +667,11 @@ function initExport() {
   });
 
   $('btnPrint').addEventListener('click', () => {
-    if (!state.A || !gate('export')) return;
-    ['sum', 'kpi', 'risk', 'rec', 'plan'].forEach(t => {
+    if (!gate('export')) return;
+    if (!state.A && !state.datasets.length) { alert('لا يوجد محتوى للطباعة.'); return; }
+    const order = state.A ? ['sum', 'kpi', 'risk', 'rec', 'plan'] : [];
+    if (state.datasets.length) order.push('rep');
+    order.forEach(t => {
       if (!RENDERED[t]) draw(t, $(PANES[t]));
       $(PANES[t]).classList.remove('hide');
     });
@@ -687,11 +711,11 @@ async function exportPdf(scope) {
     finally { busy(false); }
     return;
   }
-  if (!state.A) return;
   const u = AU.user();
   const ctxBase = { clinic: state.ctx.clinic, branch: state.ctx.branch,
-                    range: state.A.meta.rangeLabel,
+                    range: state.A ? state.A.meta.rangeLabel : (state.datasets.length + ' تقرير مرفوع'),
                     onProgress: m => $('busyMsg').textContent = m };
+  if (!state.A && !state.datasets.length) { alert('لا يوجد محتوى للتصدير.'); return; }
 
   if (scope === 'tab') {
     const t = state.tab;
@@ -715,14 +739,17 @@ async function exportPdf(scope) {
     const nodes = [];
     for (const t of PDF_ORDER) {
       if (t === 'data' && !RO.can(u, 'data')) continue;
-      if (t === 'rep') { if (!RENDERED.rep) continue; }
+      if (t === 'rep') {
+        if (!state.datasets.length) continue;
+        if (!RENDERED.rep) draw('rep', $(PANES.rep));
+        $(PANES.rep).querySelectorAll('.rcard').forEach(c => c.classList.add('open'));
+      }
       else if (t === 'ai') {
         /* لا نُدرج التحليل الذكي إلا إذا كان مولَّداً فعلاً */
         const has = RENDERED.ai && $(PANES.ai).querySelector('.aimd');
         if (!has) continue;
-      } else if (!RENDERED[t]) {
-        draw(t, $(PANES[t]));
-      }
+      } else if (!state.A) continue;
+      else if (!RENDERED[t]) draw(t, $(PANES[t]));
       const el = $(PANES[t]);
       if (el && el.innerHTML.trim()) {
         const wrap = document.createElement('div');
