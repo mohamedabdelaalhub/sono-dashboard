@@ -22,7 +22,7 @@ const NOOP = new Proxy({}, {
 const $ = id => document.getElementById(id) || (console.warn('عنصر غير موجود:', id), NOOP);
 const state = {
   files: [], income: [], expense: [], status: [], datasets: [],
-  A: null, E: null, cmp: null, C: null, cSources: null, tab: 'sum',
+  A: null, E: null, cmp: null, C: null, cSources: null, tab: 'sum', schedule: null,
   ctx: { clinic: CFG.clinicName || '', branch: CFG.branchName || '' }
 };
 
@@ -170,6 +170,7 @@ async function enterApp() {
     `جميع المبالغ بالجنيه المصري · التحليل يتم بالكامل داخل متصفحك ولا تُرفع البيانات إلى أي خادم<br>${CFG.clinicName || ''}`;
   $('tabs').classList.remove('hide');
   applyPerms();
+  loadSavedSchedule();
 }
 
 function applyPerms() {
@@ -249,6 +250,15 @@ async function handleFiles(list) {
       const wb = XLSX.read(buf, { type: 'array', cellDates: true, raw: true });
 
       /* ١) هل هو «تقرير بيان الحالة المجمع»؟ */
+      /* ٠) جدول العيادات — ملف إداري مرجعي */
+      const scd = root.SonoSchedule ? root.SonoSchedule.parse(wb, f.name) : null;
+      if (scd) {
+        state.schedule = scd;
+        state.files.push({ name: f.name, kind: 'schedule', reportName: 'جدول العيادات',
+                           income: [], expense: [], status: [], rows: scd.doctors.length });
+        continue;
+      }
+
       const st = root.SonoStatusParser ? root.SonoStatusParser.parse(wb, f.name) : null;
       if (st && st.rows.length) {
         st.warnings.forEach(w => warnings.push(f.name + ': ' + w));
@@ -439,10 +449,45 @@ function doctorRevenueMap() {
   return m;
 }
 
+/* سياق تاب جدول العيادات */
+function scheduleCtx() {
+  const u = AU.user();
+  return {
+    canSave: RO.can(u, 'upload') && !!state.schedule && !state.schedule.persisted,
+    vs: state.schedule && root.SonoSchedule
+        ? root.SonoSchedule.versusActual(state.schedule, state.datasets, state.A) : null,
+    onSave: async () => {
+      await root.SonoScheduleStore.save(state.schedule, u);
+      state.schedule.persisted = true;
+      state.schedule.savedLabel = 'محفوظ كمرجع دائم · ' + new Date().toLocaleDateString('ar-EG');
+      delete RENDERED.sch;
+    },
+    onPdf: () => exportPdf('tab')
+  };
+}
+
+/* تحميل الجدول المحفوظ عند فتح التطبيق */
+async function loadSavedSchedule() {
+  if (!root.SonoScheduleStore) return;
+  try {
+    const s = await root.SonoScheduleStore.load();
+    if (s && !state.schedule) { state.schedule = s; refreshScheduleTab(); }
+  } catch (e) { console.warn('schedule load', e); }
+}
+function refreshScheduleTab() {
+  const has = !!(state.schedule && state.schedule.doctors && state.schedule.doctors.length);
+  $('tabSch').classList.toggle('hide', !has);
+  $('cSch').textContent = has ? state.schedule.doctors.length : 0;
+  delete RENDERED.sch;
+  if (has) { $('tabs').classList.remove('hide'); $('welcome').classList.add('hide'); }
+}
+
 function rebuild() {
   renderChips();
   if (!state.files.length) { clearAll(); return; }
   mergeAll();
+
+  refreshScheduleTab();
 
   /* تاب التقارير المرفوعة */
   const hasDs = state.datasets.length > 0;
@@ -463,6 +508,16 @@ function rebuild() {
     ? root.SonoInsights.build(state.datasets, { doctorRevenue: doctorRevenueMap() })
     : { modules: [], risks: [], recos: [], plan: [], blocks: [], names: [], has: false };
 
+  /* جدول عيادات فقط بلا أي تقرير آخر */
+  if (!hasDs && !state.income.length && !state.expense.length && !state.status.length
+      && state.schedule) {
+    $('welcome').classList.add('hide');
+    $('toolbar').classList.add('hide');
+    $('tabs').classList.remove('hide');
+    renderTab('sch');
+    return;
+  }
+
   /* وضع المقارنة: كل ملف فترة مستقلة */
   const mode = (document.querySelector('input[name=upm]:checked') || {}).value;
   if (mode === 'compare' && state.files.filter(f => f.income.length || f.expense.length).length > 1) {
@@ -482,8 +537,8 @@ function rebuild() {
    التابات
    ============================================================ */
 const PANES = { sum: 'pane-sum', kpi: 'pane-kpi', risk: 'pane-risk', rec: 'pane-rec',
-                plan: 'pane-plan', ai: 'pane-ai', rep: 'pane-rep', cmp: 'pane-cmp',
-                arch: 'pane-arch', data: 'pane-data' };
+                plan: 'pane-plan', ai: 'pane-ai', sch: 'pane-sch', rep: 'pane-rep',
+                cmp: 'pane-cmp', arch: 'pane-arch', data: 'pane-data' };
 const RENDERED = {};
 
 function initTabs() {
@@ -493,6 +548,12 @@ function initTabs() {
 
 function renderTab(t, force) {
   const u = AU.user();
+  if (t === 'sch') {
+    state.tab = t; markTabs(t); showPane(t);
+    $('welcome').classList.add('hide');
+    if (!RENDERED.sch) draw('sch', $(PANES.sch));
+    return;
+  }
   if (t === 'rep') {
     state.tab = t; markTabs(t); showPane(t);
     $('welcome').classList.add('hide');
@@ -651,6 +712,7 @@ function draw(t, el) {
     data: () => RD.renderData(el, state.A, state.E),
     rep : () => { root.SonoRenderReports.render(el, state.datasets);
                   root.SonoRenderReports.drawCharts(el, state.datasets); },
+    sch : () => root.SonoRenderSchedule.render(el, state.schedule, scheduleCtx()),
     cmp : () => { /* يُرسم عند عرض المقارنة فقط */ }
   };
   const f = D[t];
@@ -665,12 +727,13 @@ function draw(t, el) {
 function initExport() {
   $('btnXlsx').addEventListener('click', () => {
     if (!gate('export')) return;
-    if (!state.A && !state.datasets.length) { alert('لا يوجد محتوى للتصدير.'); return; }
+    if (!state.A && !state.datasets.length && !state.schedule) { alert('لا يوجد محتوى للتصدير.'); return; }
     busy(true, 'جارٍ بناء ملف الإكسل…');
     setTimeout(() => {
       try {
         if (state.A) EX.toXlsx(state.A, state.E, state.ctx, state.datasets);
-        else EX.datasetsXlsx(state.datasets, state.ctx, state.ins);
+        else if (state.datasets.length) EX.datasetsXlsx(state.datasets, state.ctx, state.ins);
+        else if (state.schedule) root.SonoRenderSchedule.toXlsx();
       }
       catch (e) { console.error(e); alert('تعذّر التصدير: ' + (e.message || e)); }
       finally { busy(false); }
@@ -681,7 +744,7 @@ function initExport() {
   const menu = $('pdfMenu');
   $('btnPdf').addEventListener('click', e => {
     if (!gate('export')) return;
-    if (!state.A && !state.datasets.length) { alert('لا يوجد محتوى للتصدير.'); return; }
+    if (!state.A && !state.datasets.length && !state.schedule) { alert('لا يوجد محتوى للتصدير.'); return; }
     e.stopPropagation();
     menu.classList.toggle('hide');
   });
@@ -717,10 +780,11 @@ function initExport() {
 /* ============================================================
    تصدير PDF: التاب المعروض أو كل التابات
    ============================================================ */
-const TAB_NAMES = { sum: 'ملخص التقرير', kpi: 'المؤشرات', risk: 'المخاطر', rec: 'التوصيات',
+const TAB_NAMES = { sch: 'جدول العيادات',
+                    sum: 'ملخص التقرير', kpi: 'المؤشرات', risk: 'المخاطر', rec: 'التوصيات',
                     plan: 'خطة العمل', ai: 'التحليل الذكي', rep: 'التقارير المرفوعة',
                     data: 'البيانات التفصيلية' };
-const PDF_ORDER = ['sum', 'kpi', 'risk', 'rec', 'plan', 'ai', 'rep', 'data'];
+const PDF_ORDER = ['sum', 'kpi', 'risk', 'rec', 'plan', 'ai', 'sch', 'rep', 'data'];
 
 async function exportPdf(scope) {
   /* تقرير مقارنة معروض */
@@ -741,7 +805,7 @@ async function exportPdf(scope) {
   const ctxBase = { clinic: state.ctx.clinic, branch: state.ctx.branch,
                     range: state.A ? state.A.meta.rangeLabel : (state.datasets.length + ' تقرير مرفوع'),
                     onProgress: m => $('busyMsg').textContent = m };
-  if (!state.A && !state.datasets.length) { alert('لا يوجد محتوى للتصدير.'); return; }
+  if (!state.A && !state.datasets.length && !state.schedule) { alert('لا يوجد محتوى للتصدير.'); return; }
 
   if (scope === 'tab') {
     const t = state.tab;
@@ -765,7 +829,11 @@ async function exportPdf(scope) {
     const nodes = [];
     for (const t of PDF_ORDER) {
       if (t === 'data' && !RO.can(u, 'data')) continue;
-      if (t === 'rep') {
+      if (t === 'sch') {
+        if (!state.schedule) continue;
+        if (!RENDERED.sch) draw('sch', $(PANES.sch));
+      }
+      else if (t === 'rep') {
         if (!state.datasets.length) continue;
         if (!RENDERED.rep) draw('rep', $(PANES.rep));
         $(PANES.rep).querySelectorAll('.rcard').forEach(c => c.classList.add('open'));
@@ -815,7 +883,8 @@ function busy(on, msg) {
 
   busy(true, 'جارٍ التحقق من الجلسة…');
   let u = null, err = null;
-  root.SonoApp = { state, rebuild, renderTab, handleFiles, applyPeriod, exportPdf };
+  root.SonoApp = { state, rebuild, renderTab, handleFiles, applyPeriod, exportPdf,
+                   loadSavedSchedule, scheduleCtx };
   try { u = await AU.restore(); } catch (e) { err = e; }
   busy(false);
   if (u) await enterApp();

@@ -497,3 +497,49 @@ footer.pg{color:var(--muted);font-size:12px;text-align:center;margin-top:26px;li
 /* ترويسة قسم التحليل التشغيلي */
 .insHead { border-right: 4px solid var(--petrol); background: linear-gradient(90deg, rgba(15,54,157,.05), transparent 60%); }
 .insHead h2 { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+
+
+/* ============================================================
+   تاب جدول العيادات
+   ============================================================ */
+.schTop .chead { align-items:flex-start; gap:14px; flex-wrap:wrap; }
+.schActions { display:flex; gap:8px; flex-wrap:wrap; }
+.schNav { margin-top:12px; flex-wrap:wrap; }
+.schWeek { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:10px; margin-top:14px; }
+.schDay { border:1px solid var(--line); border-radius:12px; overflow:hidden; background:var(--card); min-width:0; }
+.schDay.isToday { border-color:var(--petrol); box-shadow:0 0 0 2px rgba(15,54,157,.12); }
+.schDayHead { background:rgba(15,54,157,.06); padding:8px 10px; border-bottom:1px solid var(--line);
+  display:flex; flex-direction:column; gap:2px; }
+.schDay.isToday .schDayHead { background:rgba(15,54,157,.14); }
+.schDayHead b { font-size:13.5px; }
+.schDayHead span { font-size:11px; color:var(--muted); }
+.schSlot { padding:8px 10px; border-bottom:1px solid var(--line); }
+.schSlot:last-child { border-bottom:0; }
+.schSlot .sn { font-size:12.5px; font-weight:700; line-height:1.5; }
+.schSlot .ss { font-size:11px; color:var(--muted); margin-top:1px; }
+.schSlot .st { font-size:11.5px; margin-top:3px; font-variant-numeric:tabular-nums; }
+.schSlot .sp { font-size:11px; color:var(--muted); margin-top:2px; font-variant-numeric:tabular-nums; }
+.schSlot .sp a { color:var(--petrol); text-decoration:none; }
+.schEmpty { padding:14px 10px; font-size:11.5px; color:var(--muted); text-align:center; }
+
+.schFilters { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; align-items:center; }
+.schFilters input[type=search], .schFilters select {
+  font-family:inherit; font-size:13px; padding:8px 11px; border:1px solid var(--line);
+  border-radius:9px; background:var(--card); color:var(--ink); min-width:0; }
+.schFilters input[type=search] { flex:1 1 260px; }
+.schFilters select { flex:0 1 auto; }
+
+table.schMatrix td { text-align:center; }
+table.schMatrix td:first-child { text-align:right; }
+.cvOn  { background:rgba(15,54,157,.10); font-weight:700; font-variant-numeric:tabular-nums; }
+.cvOff { color:var(--clay); opacity:.55; }
+.cvBad { color:var(--clay); font-weight:800; }
+.cvSum td { border-top:2px solid var(--line); font-weight:700; }
+
+@media (max-width:1100px){ .schWeek { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+@media (max-width:720px){
+  .schWeek { grid-template-columns:1fr; }
+  .schActions { width:100%; }
+  .schActions .btn { flex:1 1 auto; }
+  .schFilters input[type=search], .schFilters select { flex:1 1 100%; }
+}
