@@ -252,25 +252,31 @@ async function handleFiles(list) {
       const st = root.SonoStatusParser ? root.SonoStatusParser.parse(wb, f.name) : null;
       if (st && st.rows.length) {
         st.warnings.forEach(w => warnings.push(f.name + ': ' + w));
+        /* نفس الملف يُقرأ أيضاً بالمحرك العام: منه يأتي الإيراد والتحليل التشغيلي،
+           بينما تتولّى قراءة «بيان الحالة» تحليل هامش الأطباء. */
+        const auSt = root.SonoAuto ? root.SonoAuto.parse(wb, f.name) : null;
+        if (auSt) state.datasets.push(auSt);
         state.files.push({ name: f.name, kind: 'status', income: [], expense: [],
-                           status: st.rows, period: st.period });
+                           status: st.rows, period: st.period,
+                           reportId: auSt ? auSt.id : '', reportName: auSt ? auSt.name : '',
+                           rows: auSt ? auSt.rows.length : st.rows.length });
         continue;
       }
 
-      /* ٢) تقرير حركة خزينة */
-      const r = P.parseWorkbook(wb, f.name);
-      if (r.income.length || r.expense.length) {
-        r.warnings.forEach(w => warnings.push(f.name + ': ' + w));
-        state.files.push({ name: f.name, kind: 'treasury', income: r.income, expense: r.expense, status: [] });
-        continue;
-      }
-
-      /* ٣) أي تقرير آخر من نظام المركز */
+      /* ٢) أي تقرير معروف من نظام المركز (يتجاهل ملفات الخزينة تلقائياً) */
       const au = root.SonoAuto ? root.SonoAuto.parse(wb, f.name) : null;
       if (au) {
         state.datasets.push(au);
         state.files.push({ name: f.name, kind: 'report', reportId: au.id, reportName: au.name,
                            income: [], expense: [], status: [], rows: au.rows.length });
+        continue;
+      }
+
+      /* ٣) تقرير حركة خزينة */
+      const r = P.parseWorkbook(wb, f.name);
+      if (r.income.length || r.expense.length) {
+        r.warnings.forEach(w => warnings.push(f.name + ': ' + w));
+        state.files.push({ name: f.name, kind: 'treasury', income: r.income, expense: r.expense, status: [] });
         continue;
       }
 
@@ -380,7 +386,8 @@ function currentSlice() {
 }
 
 function applyPeriod() {
-  if (!state.income.length && !state.expense.length && !(state.status || []).length) return;
+  if (!state.income.length && !state.expense.length && !(state.status || []).length
+      && !((state.ins || {}).has)) return;
   busy(true, 'جارٍ التحليل…');
   setTimeout(() => {
     try {
@@ -399,7 +406,8 @@ function applyPeriod() {
           state.A.meta.rangeLabel = AN.fmtDateAr(state.A.meta.from) + ' → ' + AN.fmtDateAr(state.A.meta.to);
       }
       const prevA = s.prev ? AN.analyze(s.prev.income, s.prev.expense, {}) : null;
-      state.cmp = AN.compare(state.A, prevA);
+      state.cmp = (state.A.kpi.revenue > 0 || state.A.kpi.cost > 0) ? AN.compare(state.A, prevA) : null;
+      state.A.ins = state.ins || { has: false, modules: [], risks: [], recos: [], plan: [], blocks: [], names: [] };
       state.E = RU.evaluate(state.A, state.cmp);
       $('cmpLbl').textContent = s.prevLabel ? 'مقابل ' + s.prevLabel
         : (s.prev ? 'مقابل الفترة السابقة' : 'لا توجد فترة سابقة للمقارنة');
@@ -415,6 +423,20 @@ function applyPeriod() {
       alert('تعذّر تحليل البيانات: ' + (e.message || e));
     } finally { busy(false); }
   }, 30);
+}
+
+/* إيراد كل طبيب من التقارير التي تربط الطبيب بالمبلغ — يغذّي تحليل الإنتاجية */
+function doctorRevenueMap() {
+  const m = {};
+  const add = (d, v) => { const k = String(d || '').trim(); if (!k || !isFinite(v)) return; m[k] = (m[k] || 0) + v; };
+  const F = { statusDetail: 'total', statusSummary: 'net', receipts: 'amount',
+              doctorLaser: 'collected', patientBalance: 'amount', doctorClaim: 'svcValue' };
+  state.datasets.forEach(ds => {
+    const f = F[ds.id];
+    if (!f) return;
+    (ds.rows || []).forEach(r => add(r.doctor, +r[f] || 0));
+  });
+  return m;
 }
 
 function rebuild() {
@@ -436,14 +458,10 @@ function rebuild() {
   const revSrc = (state.adapted.used || []).filter(u => u.income > 0);
   state.dupWarn = revSrc.length > 1 ? revSrc.map(u => u.name) : null;
 
-  /* لا توجد أي بيانات قابلة للتحليل؟ اعرض التقارير فقط */
-  if (!state.income.length && !state.expense.length && !state.status.length && hasDs) {
-    $('welcome').classList.add('hide');
-    $('toolbar').classList.add('hide');
-    $('tabs').classList.remove('hide');
-    renderTab('rep');
-    return;
-  }
+  /* التحليلات التشغيلية: محلّل مخصّص لكل نوع تقرير */
+  state.ins = root.SonoInsights
+    ? root.SonoInsights.build(state.datasets, { doctorRevenue: doctorRevenueMap() })
+    : { modules: [], risks: [], recos: [], plan: [], blocks: [], names: [], has: false };
 
   /* وضع المقارنة: كل ملف فترة مستقلة */
   const mode = (document.querySelector('input[name=upm]:checked') || {}).value;
@@ -622,14 +640,22 @@ function archiveHandlers() {
 }
 
 function draw(t, el) {
-  ({ sum : () => RD.renderSummary(el, state.A, state.E, state.cmp),
-     kpi : () => RD.renderKpi(el, state.A, state.E, state.cmp),
-     risk: () => RD.renderRisks(el, state.A, state.E),
-     rec : () => RD.renderRecos(el, state.A, state.E),
-     plan: () => RD.renderPlan(el, state.A, state.E, state.ctx),
-     ai  : () => RD.renderAiTab(el, state),
-     arch: () => RD.renderArchive(el, state, archiveHandlers()),
-     data: () => RD.renderData(el, state.A, state.E) })[t]();
+  const D = {
+    sum : () => RD.renderSummary(el, state.A, state.E, state.cmp),
+    kpi : () => RD.renderKpi(el, state.A, state.E, state.cmp),
+    risk: () => RD.renderRisks(el, state.A, state.E),
+    rec : () => RD.renderRecos(el, state.A, state.E),
+    plan: () => RD.renderPlan(el, state.A, state.E, state.ctx),
+    ai  : () => RD.renderAiTab(el, state),
+    arch: () => RD.renderArchive(el, state, archiveHandlers()),
+    data: () => RD.renderData(el, state.A, state.E),
+    rep : () => { root.SonoRenderReports.render(el, state.datasets);
+                  root.SonoRenderReports.drawCharts(el, state.datasets); },
+    cmp : () => { /* يُرسم عند عرض المقارنة فقط */ }
+  };
+  const f = D[t];
+  if (!f) return;
+  f();
   RENDERED[t] = 1;
 }
 
@@ -644,7 +670,7 @@ function initExport() {
     setTimeout(() => {
       try {
         if (state.A) EX.toXlsx(state.A, state.E, state.ctx, state.datasets);
-        else EX.datasetsXlsx(state.datasets, state.ctx);
+        else EX.datasetsXlsx(state.datasets, state.ctx, state.ins);
       }
       catch (e) { console.error(e); alert('تعذّر التصدير: ' + (e.message || e)); }
       finally { busy(false); }
@@ -761,7 +787,7 @@ async function exportPdf(scope) {
     }
     if (!nodes.length) throw new Error('لا يوجد محتوى للتصدير.');
     const n = await EX.toPdfFromNodes(nodes, { ...ctxBase, section: 'التقرير الكامل',
-      fileName: `التقرير-الكامل-سونو-${state.A.meta.rangeLabel || ''}.pdf`.replace(/[\/\\:*?"<>|]/g, '-') });
+      fileName: `التقرير-الكامل-سونو-${(state.A && state.A.meta.rangeLabel) || ''}.pdf`.replace(/[\/\\:*?"<>|]/g, '-') });
     $('busyMsg').textContent = 'تم — ' + n + ' صفحة';
   } catch (e) { console.error(e); alert('تعذّر إنشاء ملف PDF: ' + (e.message || e)); }
   finally { busy(false); renderTab(prevTab); }
@@ -789,6 +815,7 @@ function busy(on, msg) {
 
   busy(true, 'جارٍ التحقق من الجلسة…');
   let u = null, err = null;
+  root.SonoApp = { state, rebuild, renderTab, handleFiles, applyPeriod, exportPdf };
   try { u = await AU.restore(); } catch (e) { err = e; }
   busy(false);
   if (u) await enterApp();

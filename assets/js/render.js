@@ -5,7 +5,7 @@
 'use strict';
 const C = root.SonoCharts;
 const fmt = C.fmt, esc = C.esc;
-const pc  = v => (v * 100).toFixed(1) + '%';
+const pc  = v => (isFinite(v) ? (v * 100).toFixed(1) : '0.0') + '%';
 const eg  = v => fmt(v) + ' جنيه';
 const num = v => `<span class="num">${fmt(v)}</span>`;
 const numS = s => `<span class="num">${esc(s)}</span>`;
@@ -17,11 +17,67 @@ function delta(d, invert) {
   return `<span class="${good ? 'dl-up' : 'dl-dn'}">${up ? '▲' : '▼'} ${Math.abs(d.pct * 100).toFixed(1)}%</span>`;
 }
 
+
+/* ============================================================
+   كتل التحليلات التشغيلية (insights.js) — تُعرض في كل التابات
+   ============================================================ */
+function insHtml(A, opts) {
+  opts = opts || {};
+  const I = A.ins;
+  if (!I || !I.has) return '';
+  return I.modules.map((m, i) => {
+    const kp = (m.kpis || []).filter(Boolean);
+    const chs = (m.charts || []).filter(c => c.data && c.data.length);
+    const tbs = (m.tables || []).filter(t => t.rows && t.rows.length);
+    return `
+      <div class="card insHead">
+        <h2>${esc(m.name)} <span class="tag area">${esc(m.group || '')}</span></h2>
+        <div class="note">${esc(m.headline || '')}${m.rowCount ? ` · ${fmt(m.rowCount)} سطر` : ''}</div>
+      </div>
+      ${kp.length ? `<div class="kpis">${kp.map(c => `
+        <div class="kpi ${c.tone || ''}">
+          <div class="lbl">${esc(c.lbl)}</div>
+          <div class="val">${numS(String(c.val))}${c.unit ? `<span class="unit">${esc(c.unit)}</span>` : ''}</div>
+          <div class="foot">${esc(c.foot || '')}</div>
+        </div>`).join('')}</div>` : ''}
+      ${chs.length ? `<div class="${chs.length > 1 ? 'grid2' : ''}">${chs.map((c, j) => `
+        <div class="card"><h2>${esc(c.title)}</h2>
+          ${c.note ? `<div class="note">${esc(c.note)}</div>` : ''}
+          <div id="ins${i}_${j}"></div></div>`).join('')}</div>` : ''}
+      ${tbs.map(t => `
+        <div class="card"><h2>${esc(t.title)}</h2>
+          ${t.note ? `<div class="note">${esc(t.note)}</div>` : ''}
+          <div class="tscroll"><table>
+            <thead><tr>${t.head.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead>
+            <tbody>${t.rows.map(r => `<tr>${r.map((c, ci) => ci
+              ? `<td class="n">${esc(String(c))}</td>` : `<td>${esc(String(c))}</td>`).join('')}</tr>`).join('')}</tbody>
+          </table></div></div>`).join('')}`;
+  }).join('');
+}
+
+function insDraw(A) {
+  const I = A.ins;
+  if (!I || !I.has) return;
+  I.modules.forEach((m, i) => {
+    (m.charts || []).filter(c => c.data && c.data.length).forEach((c, j) => {
+      const el = document.getElementById(`ins${i}_${j}`);
+      if (!el) return;
+      const rows = c.data.map(d => ({
+        label: String(d.label).length > 34 ? String(d.label).slice(0, 33) + '…' : String(d.label),
+        title: String(d.label), value: d.value
+      }));
+      if (c.kind === 'donut') C.donut(el, rows, c.opts || {});
+      else C.hbars(el, rows, c.opts || {});
+    });
+  });
+}
+
 /* ============================================================
    1) ملخص التقرير
    ============================================================ */
 function renderSummary(el, A, E, cmp) {
   const k = A.kpi;
+  const fin = k.revenue > 0 || k.cost > 0;
   el.innerHTML = `
     ${A.dupWarn ? `<div class="notice">
       <h3>تنبيه: أكثر من تقرير يصف نفس الإيراد</h3>
@@ -49,7 +105,13 @@ function renderSummary(el, A, E, cmp) {
         <p style="font-size:14.5px;line-height:1.95;margin-top:8px">${esc(s.p)}</p>
       </div>`).join('')}
 
-    <div class="card">
+    ${!fin ? `<div class="notice">
+      <h3>تحليل تشغيلي — لا توجد حركة إيراد أو مصروف في هذه التقارير</h3>
+      <ul>
+        <li><span>—</span><div>التقارير المرفوعة مرجعية أو تشغيلية، فبُني التقرير كله على تحليلها: المؤشرات والمخاطر والتوصيات وخطة العمل.</div></li>
+        <li><span>—</span><div>لإضافة الهامش ونقطة التعادل وربحية الأطباء، ارفع معها <b>مصدر إيراد واحداً</b> (الخزينة أو بيان الحالة أو كشف الحساب).</div></li>
+      </ul></div>` : ''}
+    ${!fin ? '' : `<div class="card">
       <div class="chead">
         <div><h2>شريط حركة الخزينة</h2>
           <div class="note">الوارد أعلى الخط · المنصرف أسفله · الخط المتقطع = الرصيد التراكمي</div></div>
@@ -64,7 +126,7 @@ function renderSummary(el, A, E, cmp) {
         <span><i style="background:var(--clay)"></i>المنصرف</span>
         <span><i style="background:var(--ink);opacity:.5"></i>الرصيد التراكمي</span>
       </div>
-    </div>
+    </div>`}
 
     <div class="grid2">
       <div class="card"><h2>أعلى المخاطر</h2>
@@ -88,6 +150,7 @@ function renderSummary(el, A, E, cmp) {
     </div>`;
 
   C.gauge(document.getElementById('gg'), E.score);
+  if (!fin) return;
   drawRibbon(A, 'd');
   const bD = document.getElementById('rbD'), bW = document.getElementById('rbW');
   bD.onclick = () => { bD.setAttribute('aria-pressed', 'true'); bW.setAttribute('aria-pressed', 'false'); drawRibbon(A, 'd'); };
@@ -108,6 +171,7 @@ function drawRibbon(A, mode) {
    ============================================================ */
 function renderKpi(el, A, E, cmp) {
   const k = A.kpi;
+  const fin = k.revenue > 0 || k.cost > 0;
   const cards = [
     ['إجمالي الإيراد', fmt(k.revenue), 'جنيه', `${eg(k.revPerDay)} في اليوم`, '', cmp && cmp.revenue],
     ['إجمالي المنصرف', fmt(k.cost), 'جنيه', `${pc(k.costRatio)} من الإيراد`, 'k5', cmp && cmp.cost],
@@ -122,7 +186,7 @@ function renderKpi(el, A, E, cmp) {
     ['التذبذب اليومي', pc(k.cv), '', `أعلى/أدنى يوم`, 'k3', null],
     ['بنود الخدمة', fmt(k.lineItems), 'بند', `متوسط البند ${eg(k.avgLine)}`, '', null]
   ];
-  el.innerHTML = `
+  el.innerHTML = (!fin ? insHtml(A) : `
     <div class="kpis">${cards.map(c => `
       <div class="kpi ${c[4]}">
         <div class="lbl">${esc(c[0])}</div>
@@ -180,7 +244,9 @@ function renderKpi(el, A, E, cmp) {
       <div class="card"><h2>المستهلكات المرصودة من الملاحظات</h2>
         <div class="note">استُخرجت نصياً من حقل ملاحظات الإيصال — ليست دفتر مخزون</div>
         <div id="cSup"></div></div>
-    </div>`;
+    </div>` + insHtml(A));
+
+  if (!fin) { insDraw(A); return; }
 
   C.hbars(document.getElementById('cDow'),
     A.dowAgg.filter(d => d.days).map(d => ({ label: d.dow, value: d.avg })));
@@ -206,6 +272,7 @@ function renderKpi(el, A, E, cmp) {
     sup.insertAdjacentHTML('beforeend',
       `<p class="note" style="margin-top:12px">المسجّل محاسبياً تحت «مستلزمات طبية»: <b class="num">${fmt(k.suppliesRecorded)}</b> جنيه فقط.</p>`);
   } else sup.innerHTML = '<p class="note">لا توجد ملاحظات استهلاك في هذه الفترة.</p>';
+  insDraw(A);
 }
 
 /* ============================================================
@@ -338,6 +405,7 @@ function renderRisks(el, A, E) {
             <span>${esc(r.metric)}: <b>${esc(r.value)}</b></span>
             <span>المستهدف: <b>${esc(r.target)}</b></span>
             ${r.impact > 0 ? `<span>الأثر المالي: <b>${fmt(r.impact)}</b> جنيه</span>` : ''}
+            ${r.src ? `<span>المصدر: <b>${esc(r.src)}</b></span>` : ''}
           </div>
         </div>`).join('')}`).join('')}`;
 }
@@ -355,7 +423,7 @@ function renderRecos(el, A, E) {
         <span class="tag ${r.sev}">${esc(r.sevAr)}</span>
       </div>
       <ol>${r.steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol>
-      <div class="lnk">مرتبطة بمخاطرة: ${esc(r.linkedRisk)}${r.impact > 0 ? ` · الأثر التقديري ${fmt(r.impact)} جنيه` : ''}</div>
+      <div class="lnk">مرتبطة بمخاطرة: ${esc(r.linkedRisk)}${r.impact > 0 ? ` · الأثر التقديري ${fmt(r.impact)} جنيه` : ''}${r.src ? ` · من «${esc(r.src)}»` : ''}</div>
     </div>`).join('');
 }
 
@@ -903,6 +971,6 @@ async function renderArchive(el, state, handlers) {
   await fill();
 }
 
-root.SonoRender = { renderSummary, renderKpi, renderRisks, renderRecos, renderPlan, renderData,
+root.SonoRender = { insHtml, insDraw, renderSummary, renderKpi, renderRisks, renderRecos, renderPlan, renderData,
                     renderAiTab, renderArchive, renderComparison, drawRibbon };
 })(window);

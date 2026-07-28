@@ -492,3 +492,8 @@ footer.pg{color:var(--muted);font-size:12px;text-align:center;margin-top:26px;li
   .kpis{grid-template-columns:1fr 1fr}
   .uname{display:none}
 }
+
+
+/* ترويسة قسم التحليل التشغيلي */
+.insHead { border-right: 4px solid var(--petrol); background: linear-gradient(90deg, rgba(15,54,157,.05), transparent 60%); }
+.insHead h2 { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }

@@ -5,7 +5,7 @@
 (function (root) {
 'use strict';
 
-const pc  = v => (v * 100).toFixed(1) + '%';
+const pc  = v => (isFinite(v) ? (v * 100).toFixed(1) : '0.0') + '%';
 const eg  = v => Math.round(v).toLocaleString('en-US');
 const cur = v => eg(v) + ' جنيه';
 
@@ -876,19 +876,29 @@ function evaluate(A, cmp) {
     cat: name => (A.expCats.find(x => x.cat === name) || { total: 0 }).total
   };
 
+  /* التحليلات التشغيلية القادمة من insights.js */
+  const INS = A.ins || { risks: [], recos: [], plan: [], blocks: [], has: false };
+  /* القواعد المالية كلها تُقاس نسبةً إلى الإيراد — بلا إيراد لا معنى لها */
+  const financial = A.kpi.revenue > 0;
+
   const risks = [];
-  RULES.forEach(r => {
+  if (financial) RULES.forEach(r => {
     let res;
     try { res = r.test(ctx); } catch (e) { res = false; }
     if (res) risks.push(Object.assign({ id: r.id, area: r.area, sevAr: SEV_AR[res.sev] }, res));
   });
+  (INS.risks || []).forEach(r => risks.push(Object.assign({}, r, { sevAr: SEV_AR[r.sev] })));
   risks.sort((a, b) => (SEV_ORDER[a.sev] - SEV_ORDER[b.sev]) || (b.impact - a.impact));
 
+  const insReco = {};
+  (INS.recos || []).forEach(r => insReco[r.riskId] = r);
   const recos = risks.map((r, i) => {
+    const ir = insReco[r.id];
     const f = ADVICE[r.id];
-    const a = f ? f(ctx) : { title: r.title, steps: [] };
+    const a = ir ? { title: ir.title, steps: ir.steps } : (f ? f(ctx) : { title: r.title, steps: [] });
     return { n: i + 1, riskId: r.id, area: r.area, sev: r.sev, sevAr: r.sevAr,
-             title: a.title, steps: a.steps, impact: r.impact, linkedRisk: r.title };
+             title: a.title, steps: a.steps, impact: r.impact, linkedRisk: r.title,
+             src: r.src || '' };
   });
 
   /* خطة العمل: مهام المخاطر المفعّلة + المهام الأساسية، مرتبة بالأولوية */
@@ -915,6 +925,13 @@ function evaluate(A, cmp) {
       }));
     });
   });
+  /* مهام التحليلات التشغيلية */
+  (INS.plan || []).forEach(t => {
+    if (seen.has(t.t)) return;
+    seen.add(t.t);
+    const rc = recoById[t.riskId];
+    plan.push(Object.assign({}, t, { steps: (t.steps && t.steps.length) ? t.steps : (rc ? rc.steps : []) }));
+  });
   BASELINE(ctx).forEach(t => { if (!seen.has(t.t)) { seen.add(t.t);
     plan.push(Object.assign({}, t, { area: 'الحوكمة', riskId: 'baseline', sev: 'low',
       why: 'مهمة حوكمة دائمة لا ترتبط بمخاطرة بعينها — وجودها يمنع تكرار المشاكل.',
@@ -925,11 +942,44 @@ function evaluate(A, cmp) {
   /* ملخص تنفيذي */
   const crit = risks.filter(r => r.sev === 'critical' || r.sev === 'high');
   const upside = risks.reduce((s, r) => s + (r.impact || 0), 0);
-  const summary = buildSummary(ctx, risks, crit, upside);
+  const summary = (financial ? buildSummary(ctx, risks, crit, upside) : opsSummary(ctx, risks, crit, INS))
+                    .concat(financial ? (INS.blocks || []) : []);
 
-  return { risks, recos, plan, summary,
+  return { risks, recos, plan, summary, fin: financial,
            score: healthScore(ctx, risks),
            upside, criticalCount: crit.length };
+}
+
+/* ملخص تنفيذي حين لا توجد حركة مالية — يُبنى من التحليلات التشغيلية */
+function opsSummary(c, risks, crit, INS) {
+  const lines = [];
+  const names = (INS.names || []);
+  const k = c.k;
+  lines.push({
+    h: 'ما الذي حلّلناه',
+    p: (k.cost > 0
+        ? `هذه التقارير تحمل مصروفاً مسجّلاً قدره ${cur(k.cost)} بلا إيراد مقابل، فلا يمكن حساب هامش أو نسبة تكلفة. `
+        : `هذه الفترة لا تحتوي على حركة إيراد أو مصروف قابلة للتحليل المالي، `) +
+       `لذلك بُني التقرير على التحليل التشغيلي لـ${cnt(names.length, 'تقرير واحد', 'تقريرين', 'تقارير', 'تقريراً')}: ` +
+       names.join(' · ') + '. ' +
+       `كل المؤشرات والمخاطر والتوصيات وخطة العمل أدناه مستخرَجة من هذه التقارير.`
+  });
+  (INS.blocks || []).forEach(b => lines.push(b));
+  lines.push({
+    h: 'الخلاصة',
+    p: crit.length
+      ? `${cnt(crit.length, 'مخاطرة واحدة', 'مخاطرتان', 'مخاطر', 'مخاطرة')} ذات أولوية عالية تتصدرها «${crit[0].title}». ` +
+        `عالجها أولاً ثم أعد رفع التقارير لقياس الأثر.`
+      : (risks.length
+          ? `${cnt(risks.length, 'ملاحظة واحدة', 'ملاحظتان', 'ملاحظات', 'ملاحظة')} تشغيلية بلا مخاطر عالية — راجع خطة العمل للترتيب.`
+          : `لا مخاطر مكتشفة في هذه التقارير.`)
+  });
+  lines.push({
+    h: 'للحصول على التحليل المالي الكامل',
+    p: `ارفع مع هذه التقارير مصدر إيراد واحداً (تقرير الخزينة أو بيان الحالة التفصيلي أو كشف الحساب) ` +
+       `ليُحسب الهامش ونقطة التعادل وربحية الأطباء والخدمات.`
+  });
+  return lines;
 }
 
 function healthScore(c, risks) {

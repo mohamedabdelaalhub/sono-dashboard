@@ -24,9 +24,12 @@ function toXlsx(A, E, ctx, datasets) {
     ws['!cols'] = (widths || []).map(w => ({ wch: w }));
     XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 31));
   };
+  /* الشيتات المالية تُكتب فقط إن وُجدت حركة مالية */
+  const fin = k.revenue > 0 || k.cost > 0;
+  const addF = (n, r, w) => { if (fin) add(n, r, w); };
 
   /* 1) الملخص */
-  add('الملخص', [
+  addF('الملخص', [
     [ctx.clinic], [ctx.branch], ['الفترة', A.meta.rangeLabel], ['تاريخ التصدير', new Date().toLocaleString('ar-EG')], [],
     ['المؤشر', 'القيمة', 'الوحدة'],
     ['إجمالي الإيراد', r0(k.revenue), 'جنيه'],
@@ -53,44 +56,56 @@ function toXlsx(A, E, ctx, datasets) {
     ...E.summary.map(s => [s.h, s.p])
   ], [34, 16, 10]);
 
+
+  /* ملخص التقرير حين لا توجد حركة مالية */
+  if (!fin) add('الملخص', [
+    [ctx.clinic], [ctx.branch], ['الفترة', A.meta.rangeLabel],
+    ['تاريخ التصدير', new Date().toLocaleString('ar-EG')], [],
+    ['نوع التقرير', 'تحليل تشغيلي — لا توجد حركة إيراد أو مصروف'], [],
+    ['القسم', 'الخلاصة'],
+    ...(E.summary || []).map(x => [x.h, x.p]), [],
+    ['المؤشر', 'القيمة', 'الوحدة', 'ملاحظة', 'المصدر'],
+    ...(((A.ins || {}).kpis) || []).map(c => [c.lbl, c.val, c.unit || '', c.foot || '', c.src || ''])
+  ], [26, 90, 10, 44, 26]);
+
   /* 2) الحركة اليومية */
-  add('الحركة اليومية', [
+  addF('الحركة اليومية', [
     ['التاريخ', 'اليوم', 'الوارد', 'المنصرف', 'الصافي', 'الإيصالات', 'المرضى'],
     ...A.daily.map(d => [d.date, d.dow, r0(d.rev), r0(d.exp), r0(d.net), d.rcpt, d.pat]),
     ['الإجمالي', '', r0(k.revenue), r0(k.cost), r0(k.net), k.receipts, '']
   ], [13, 11, 12, 12, 12, 11, 10]);
 
   /* 3) الأسبوعي */
-  add('الأسبوعي', [
+  addF('الأسبوعي', [
     ['الأسبوع', 'الفترة', 'الوارد', 'المنصرف', 'الصافي', 'أيام', 'الإيصالات'],
     ...A.weekly.map(w => [w.idx, w.label, r0(w.rev), r0(w.exp), r0(w.net), w.days, w.rcpt])
   ], [9, 34, 12, 12, 12, 8, 11]);
 
   /* 4) الخدمات */
-  add('الخدمات', [
+  addF('الخدمات', [
     ['الخدمة', 'الفئة', 'عدد المرات', 'الإيراد المخصص', '% من الإيراد'],
     ...A.services.map(s => [s.key, s.cat, s.count, r0(s.total), pc(s.total / (k.revenue || 1))])
   ], [46, 20, 12, 15, 13]);
 
-  add('فئات الخدمات', [
+  addF('فئات الخدمات', [
     ['الفئة', 'عدد البنود', 'الإيراد', '% من الإيراد'],
     ...A.serviceCats.map(c => [c.key, c.count, r0(c.total), pc(c.pct)])
   ], [24, 12, 14, 13]);
 
   /* 5) المصروفات */
-  add('بنود المصروف', [
+  addF('بنود المصروف', [
     ['البند', 'الطبيعة', 'عدد الحركات', 'المبلغ', '% من المنصرف', '% من الإيراد'],
     ...A.expCats.map(c => [c.cat, c.group, c.count, r0(c.total), pc(c.pct), pc(c.pctRev)])
   ], [26, 14, 13, 14, 14, 13]);
 
   /* 6) الأطباء */
-  add('الأطباء', [
+  addF('الأطباء', [
     ['الطبيب', 'الأتعاب', 'عدد الدفعات', 'أيام النشاط', 'متوسط الدفعة', 'الحصة %'],
     ...A.doctors.map(d => [d.doctor, r0(d.fees), d.payouts, d.days, r0(d.avg), pc(d.share)])
   ], [24, 13, 12, 12, 14, 11]);
 
   /* 7) طرق الدفع + أيام الأسبوع */
-  add('التحصيل', [
+  addF('التحصيل', [
     ['طريقة الدفع', 'عدد العمليات', 'الإيراد', '% من الإيراد'],
     ...A.methods.map(m => [m.method, m.count, r0(m.total), pc(m.pct)]),
     [], ['يوم الأسبوع', 'عدد الأيام', 'إجمالي الإيراد', 'المتوسط اليومي'],
@@ -98,7 +113,7 @@ function toXlsx(A, E, ctx, datasets) {
   ], [18, 14, 14, 15]);
 
   /* 8) المستهلكات */
-  add('المستهلكات', [
+  addF('المستهلكات', [
     ['البند', 'مرات الذكر في الملاحظات', 'الكمية التقديرية'],
     ...A.supplies.map(s => [s.item, s.mentions, s.qty]),
     [], ['المسجّل محاسبياً تحت «مستلزمات طبية»', r0(k.suppliesRecorded), 'جنيه'],
@@ -123,10 +138,13 @@ function toXlsx(A, E, ctx, datasets) {
   ], [5, 54, 14, 26, 15, 30, 22, 9]);
 
   /* 12) حركات تحتاج تصنيف */
-  if (A.unclassifiedRows.length) add('تحتاج تصنيف', [
+  if (fin && A.unclassifiedRows.length) add('تحتاج تصنيف', [
     ['التاريخ', 'البيان', 'الملاحظات', 'المبلغ'],
     ...A.unclassifiedRows.map(r => [r.date, r.bayan, r.note, r0(r.amount)])
   ], [13, 34, 44, 12]);
+
+  /* شيتات التحليل التشغيلي لكل تقرير */
+  addInsightSheets(wb, A.ins, add);
 
   /* شيت لكل تقرير مرفوع */
   addDatasetSheets(wb, datasets, add);
@@ -138,6 +156,32 @@ function toXlsx(A, E, ctx, datasets) {
    تصدير التقارير المرفوعة وحدها (حين لا يوجد تحليل خزينة)
    ============================================================ */
 const RLBL = () => (root.SonoRenderReports && root.SonoRenderReports.LABEL) || {};
+
+/* شيت تحليل لكل تقرير: مؤشراته وجداوله */
+function addInsightSheets(wb, ins, add) {
+  if (!ins || !ins.has) return;
+  const used = new Set(wb.SheetNames);
+  ins.modules.forEach(m => {
+    const rows = [['تحليل: ' + m.name], [m.headline || ''], []];
+    if ((m.kpis || []).length) {
+      rows.push(['المؤشر', 'القيمة', 'الوحدة', 'ملاحظة']);
+      m.kpis.forEach(c => rows.push([c.lbl, c.val, c.unit || '', c.foot || '']));
+      rows.push([]);
+    }
+    (m.tables || []).forEach(t => {
+      if (!t.rows || !t.rows.length) return;
+      rows.push([t.title]);
+      if (t.note) rows.push([t.note]);
+      rows.push(t.head);
+      t.rows.forEach(r => rows.push(r));
+      rows.push([]);
+    });
+    let nm = ('تحليل ' + m.name).slice(0, 28);
+    let i = 1; while (used.has(nm)) nm = ('تحليل ' + m.name).slice(0, 25) + ' ' + (++i);
+    used.add(nm);
+    add(nm, rows, [40, 20, 14, 40, 20, 20]);
+  });
+}
 function addDatasetSheets(wb, datasets, add) {
   const L = RLBL();
   const used = new Set(wb.SheetNames.map(n => n));
@@ -154,7 +198,7 @@ function addDatasetSheets(wb, datasets, add) {
   });
 }
 
-function datasetsXlsx(datasets, ctx) {
+function datasetsXlsx(datasets, ctx, ins) {
   const wb = XLSX.utils.book_new();
   wb.Workbook = { Views: [{ RTL: true }] };
   const add = (name, rows, widths) => {
@@ -168,6 +212,7 @@ function datasetsXlsx(datasets, ctx) {
     ['التقرير', 'المجال', 'الملف', 'عدد السطور'],
     ...(datasets || []).map(d => [d.name, d.group || '', d.file, (d.rows || []).length])
   ], [34, 16, 34, 12]);
+  addInsightSheets(wb, ins, add);
   addDatasetSheets(wb, datasets, add);
   XLSX.writeFile(wb, `تقارير-سونو-${stamp()}.xlsx`, { compression: true });
 }
@@ -455,5 +500,5 @@ function planXlsx(plan, ctx, owner) {
                  { compression: true });
 }
 
-root.SonoExport = { toXlsx, toPdf, toPdfFromNodes, planXlsx, datasetsXlsx };
+root.SonoExport = { toXlsx, toPdf, toPdfFromNodes, planXlsx, datasetsXlsx, addInsightSheets };
 })(window);
