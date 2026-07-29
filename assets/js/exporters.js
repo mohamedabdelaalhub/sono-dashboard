@@ -256,17 +256,17 @@ async function toPdfFromNodes(nodes, opts) {
   } finally { host.remove(); }
 
   function header(o) {
-    return `<div style="font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;direction:rtl;text-align:right;
+    return `<div style="font-family:"Hiragino Kaku","BigVesta Arabic",system-ui,Tahoma,sans-serif;direction:rtl;text-align:right;
       display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #16212E;
       padding-bottom:11px;margin-bottom:18px">
-      <div><div style="font-family:Cairo;font-size:22px;font-weight:800">${esc2(o.clinic || '')}</div>
+      <div><div style="font-family:"Hiragino Kaku","BigVesta Arabic",system-ui,Tahoma,sans-serif;font-size:22px;font-weight:800">${esc2(o.clinic || '')}</div>
         <div style="font-size:12px;color:#5E7180">${esc2(o.branch || '')}${o.section ? ' · ' + esc2(o.section) : ''}</div></div>
       <div style="text-align:left;font-size:11px;color:#5E7180">فترة التقرير
-        <div style="font-family:monospace;font-size:13px;color:#16212E;font-weight:600">${esc2(o.range || '')}</div></div>
+        <div style="font-family:'Hiragino Kaku','BigVesta Arabic',ui-monospace,monospace;font-size:13px;color:#16212E;font-weight:600">${esc2(o.range || '')}</div></div>
     </div>`;
   }
   function footer(o) {
-    return `<div style="font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;direction:rtl;
+    return `<div style="font-family:"Hiragino Kaku","BigVesta Arabic",system-ui,Tahoma,sans-serif;direction:rtl;
       font-size:10.5px;color:#5E7180;text-align:center;margin-top:20px;border-top:1px solid #D4DBE0;padding-top:9px;line-height:1.8">
       جميع المبالغ بالجنيه المصري · صدر في ${new Date().toLocaleString('ar-EG')}<br>${esc2(o.clinic || '')}</div>`;
   }
@@ -362,29 +362,29 @@ function pdfHtml(A, E, ctx) {
   const fmt = n => Math.round(n).toLocaleString('en-US');
   const esc = s => String(s == null ? '' : s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
   const p2 = v => (v * 100).toFixed(1) + '%';
-  const S = `font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;direction:rtl;text-align:right`;
-  const H2 = `font-family:Cairo,sans-serif;font-size:17px;font-weight:700;color:#0D6E75;margin:22px 0 9px;padding-bottom:5px;border-bottom:2px solid #0D6E75`;
+  const S = `font-family:"Hiragino Kaku","BigVesta Arabic",system-ui,Tahoma,sans-serif;direction:rtl;text-align:right`;
+  const H2 = `font-family:"Hiragino Kaku","BigVesta Arabic",system-ui,Tahoma,sans-serif;font-size:17px;font-weight:700;color:#0D6E75;margin:22px 0 9px;padding-bottom:5px;border-bottom:2px solid #0D6E75`;
   const TD = `border:1px solid #D4DBE0;padding:6px 8px;font-size:11.5px`;
   const TH = TD + `;background:#EEF3F4;font-weight:600;color:#16242E`;
 
   const table = (heads, rows, aligns) => `
     <table style="width:100%;border-collapse:collapse;margin-bottom:12px;${S}">
       <thead><tr>${heads.map(h => `<th style="${TH}">${esc(h)}</th>`).join('')}</tr></thead>
-      <tbody>${rows.map(r => `<tr>${r.map((c, i) => `<td style="${TD};${(aligns || [])[i] === 'n' ? 'text-align:left;font-family:monospace' : ''}">${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody>
+      <tbody>${rows.map(r => `<tr>${r.map((c, i) => `<td style="${TD};${(aligns || [])[i] === 'n' ? 'text-align:left;font-family:'Hiragino Kaku','BigVesta Arabic',ui-monospace,monospace' : ''}">${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody>
     </table>`;
 
   const kpiBox = (l, v, s) => `
     <div style="border:1px solid #D4DBE0;border-top:3px solid #0D6E75;border-radius:8px;padding:9px 11px;flex:1;min-width:130px">
       <div style="font-size:10.5px;color:#5E7180">${esc(l)}</div>
-      <div style="font-size:19px;font-weight:600;font-family:monospace;direction:ltr;text-align:right">${esc(v)}</div>
+      <div style="font-size:19px;font-weight:600;font-family:'Hiragino Kaku','BigVesta Arabic',ui-monospace,monospace;direction:ltr;text-align:right">${esc(v)}</div>
       <div style="font-size:10px;color:#5E7180;margin-top:3px">${esc(s)}</div></div>`;
 
   return `<div style="${S};background:#fff;padding:22px 26px;color:#16242E;line-height:1.7">
     <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #16242E;padding-bottom:11px;margin-bottom:6px">
-      <div><div style="font-family:Cairo;font-size:22px;font-weight:800">${esc(ctx.clinic)}</div>
+      <div><div style="font-family:"Hiragino Kaku","BigVesta Arabic",system-ui,Tahoma,sans-serif;font-size:22px;font-weight:800">${esc(ctx.clinic)}</div>
         <div style="font-size:12px;color:#5E7180">${esc(ctx.branch)} · تقرير الأداء المالي والتشغيلي</div></div>
       <div style="text-align:left;font-size:11px;color:#5E7180">فترة التقرير
-        <div style="font-family:monospace;font-size:13px;color:#16242E;font-weight:600">${esc(A.meta.rangeLabel)}</div></div>
+        <div style="font-family:'Hiragino Kaku','BigVesta Arabic',ui-monospace,monospace;font-size:13px;color:#16242E;font-weight:600">${esc(A.meta.rangeLabel)}</div></div>
     </div>
     <div style="font-size:10.5px;color:#5E7180;margin-bottom:16px">صدر في ${new Date().toLocaleString('ar-EG')} · مؤشر الصحة العام ${E.score}/100 · ${E.risks.length} مخاطرة مرصودة</div>
 
@@ -402,7 +402,7 @@ function pdfHtml(A, E, ctx) {
 
     <div style="${H2}">٢ · ملخص التقرير</div>
     ${E.summary.map(s => `<div style="margin-bottom:11px">
-      <div style="font-family:Cairo;font-weight:700;font-size:13.5px;margin-bottom:2px">${esc(s.h)}</div>
+      <div style="font-family:"Hiragino Kaku","BigVesta Arabic",system-ui,Tahoma,sans-serif;font-weight:700;font-size:13.5px;margin-bottom:2px">${esc(s.h)}</div>
       <div style="font-size:12.5px;line-height:1.9">${esc(s.p)}</div></div>`).join('')}
 
     <div style="${H2}">٣ · المؤشرات مقابل المستهدف</div>
@@ -412,7 +412,7 @@ function pdfHtml(A, E, ctx) {
     <div style="${H2}">٤ · المخاطر (${E.risks.length})</div>
     ${E.risks.map((r, i) => `
       <div style="border:1px solid #D4DBE0;border-right:4px solid ${sevColor(r.sev)};border-radius:7px;padding:10px 13px;margin-bottom:9px">
-        <div style="font-family:Cairo;font-weight:700;font-size:13.5px">${i + 1}. ${esc(r.title)}
+        <div style="font-family:"Hiragino Kaku","BigVesta Arabic",system-ui,Tahoma,sans-serif;font-weight:700;font-size:13.5px">${i + 1}. ${esc(r.title)}
           <span style="font-size:10.5px;font-weight:600;color:${sevColor(r.sev)};margin-right:6px">[${esc(r.sevAr)} · ${esc(r.area)}]</span></div>
         <div style="font-size:12px;line-height:1.85;margin-top:4px">${esc(r.finding)}</div>
         ${r.impactNote ? `<div style="font-size:11.5px;color:#7A5408;background:#FDF6E8;padding:5px 8px;border-radius:5px;margin-top:5px">${esc(r.impactNote)}</div>` : ''}
@@ -423,7 +423,7 @@ function pdfHtml(A, E, ctx) {
     <div style="${H2}">٥ · التوصيات (${E.recos.length})</div>
     ${E.recos.map(r => `
       <div style="margin-bottom:11px">
-        <div style="font-family:Cairo;font-weight:700;font-size:13px">${r.n}. ${esc(r.title)}</div>
+        <div style="font-family:"Hiragino Kaku","BigVesta Arabic",system-ui,Tahoma,sans-serif;font-weight:700;font-size:13px">${r.n}. ${esc(r.title)}</div>
         <ol style="font-size:12px;line-height:1.85;padding-right:20px;margin-top:3px">
           ${r.steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol>
       </div>`).join('')}

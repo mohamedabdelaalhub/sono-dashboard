@@ -105,7 +105,7 @@ function donut(el, rows, opts) {
   el.innerHTML = `<div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center">
     <svg viewBox="0 0 180 180" style="width:180px;flex:0 0 auto">${arcs}
       <text x="90" y="86" text-anchor="middle" class="tick" style="font-size:11px">الإجمالي</text>
-      <text x="90" y="103" text-anchor="middle" style="font-family:'IBM Plex Mono';font-size:14px;fill:var(--ink);font-weight:600">${fmt(total)}</text>
+      <text x="90" y="103" text-anchor="middle" style="font-family:'Hiragino Kaku','BigVesta Arabic',ui-monospace,monospace;font-size:14px;fill:var(--ink);font-weight:600">${fmt(total)}</text>
     </svg>
     <div style="flex:1;min-width:190px">${rows.map((row, i) => `
       <div class="dl"><i style="background:${row.color || PALETTE[i % PALETTE.length]}"></i>
@@ -132,7 +132,7 @@ function gauge(el, score) {
   el.innerHTML = `<svg viewBox="0 0 140 128" style="width:140px">
     ${arc(a0, a0 + span, 'var(--paper)', sw)}
     ${score > 0 ? arc(a0, a1, col, sw) : ''}
-    <text x="70" y="76" text-anchor="middle" style="font-family:'IBM Plex Mono';font-size:30px;font-weight:600;fill:${col}">${score}</text>
+    <text x="70" y="76" text-anchor="middle" style="font-family:'Hiragino Kaku','BigVesta Arabic',ui-monospace,monospace;font-size:30px;font-weight:600;fill:${col}">${score}</text>
     <text x="70" y="94" text-anchor="middle" class="tick">من 100</text></svg>`;
 }
 

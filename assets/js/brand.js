@@ -27,7 +27,9 @@ function tint(hex, amount) {
    kind = 'full' الشعار الكامل (نص + رمز) · 'mark' الرمز المربّع وحده  */
 function logo(kind) {
   const url = kind === 'mark' ? (CFG.markUrl || CFG.logoUrl) : (CFG.logoUrl || CFG.markUrl);
-  if (url) return `<img src="${url}" alt="${esc(CFG.clinicName || '')}" class="logoimg">`;
+  /* لو تعذّر تحميل ملف الشعار لأي سبب نرجع للشعار المرسوم بدل مربّع فاضي */
+  if (url) return `<img src="${url}" alt="${esc(CFG.clinicName || '')}" class="logoimg"
+    onerror="this.parentNode.innerHTML=window.SonoBrand.builtinMark()">`;
   return builtinMark();
 }
 
@@ -123,5 +125,5 @@ function mount() {
   document.title = (CFG.clinicName || 'لوحة المؤشرات') + ' — لوحة المؤشرات';
 }
 
-root.SonoBrand = { mount, logo, heroArt, applyTheme };
+root.SonoBrand = { mount, logo, builtinMark, heroArt, applyTheme };
 })(window);

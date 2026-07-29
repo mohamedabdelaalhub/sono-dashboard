@@ -847,7 +847,7 @@ async function exportPdf(scope) {
       const el = $(PANES[t]);
       if (el && el.innerHTML.trim()) {
         const wrap = document.createElement('div');
-        wrap.innerHTML = `<h2 style="font-family:Cairo;font-size:19px;font-weight:800;color:var(--petrol);
+        wrap.innerHTML = `<h2 style="font-family:"Hiragino Kaku","BigVesta Arabic",system-ui,Tahoma,sans-serif;font-size:19px;font-weight:800;color:var(--petrol);
           border-bottom:2px solid var(--petrol);padding-bottom:6px;margin:22px 0 12px">${TAB_NAMES[t]}</h2>`
           + el.innerHTML;
         nodes.push(wrap);
