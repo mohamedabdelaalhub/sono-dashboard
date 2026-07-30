@@ -537,7 +537,7 @@ function rebuild() {
    التابات
    ============================================================ */
 const PANES = { sum: 'pane-sum', kpi: 'pane-kpi', risk: 'pane-risk', rec: 'pane-rec',
-                plan: 'pane-plan', ai: 'pane-ai', sch: 'pane-sch', rep: 'pane-rep',
+                plan: 'pane-plan', dist: 'pane-dist', ai: 'pane-ai', sch: 'pane-sch', rep: 'pane-rep',
                 cmp: 'pane-cmp', arch: 'pane-arch', data: 'pane-data' };
 const RENDERED = {};
 
@@ -707,6 +707,7 @@ function draw(t, el) {
     risk: () => RD.renderRisks(el, state.A, state.E),
     rec : () => RD.renderRecos(el, state.A, state.E),
     plan: () => RD.renderPlan(el, state.A, state.E, state.ctx),
+    dist: () => root.SonoRenderDist.render(el, state.A),
     ai  : () => RD.renderAiTab(el, state),
     arch: () => RD.renderArchive(el, state, archiveHandlers()),
     data: () => RD.renderData(el, state.A, state.E),

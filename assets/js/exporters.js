@@ -370,7 +370,7 @@ function pdfHtml(A, E, ctx) {
   const table = (heads, rows, aligns) => `
     <table style="width:100%;border-collapse:collapse;margin-bottom:12px;${S}">
       <thead><tr>${heads.map(h => `<th style="${TH}">${esc(h)}</th>`).join('')}</tr></thead>
-      <tbody>${rows.map(r => `<tr>${r.map((c, i) => `<td style="${TD};${(aligns || [])[i] === 'n' ? 'text-align:left;font-family:'Hiragino Kaku','BigVesta Arabic',ui-monospace,monospace' : ''}">${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody>
+      <tbody>${rows.map(r => `<tr>${r.map((c, i) => `<td style="${TD};${(aligns || [])[i] === 'n' ? "text-align:left;font-family:'Hiragino Kaku','BigVesta Arabic',ui-monospace,monospace" : ''}">${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody>
     </table>`;
 
   const kpiBox = (l, v, s) => `
