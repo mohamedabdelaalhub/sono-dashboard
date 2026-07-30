@@ -232,6 +232,69 @@ async function fillUsers() {
 }
 
 /* ============================================================
+   واجهة التحكم في التابات — أي مستخدم يشوف أي تاب
+   منفصلة تماماً عن جدول المستخدمين أعلاه، لتفادي أي تعديل عليه.
+   ============================================================ */
+async function renderTabAccess() {
+  const el = $('con-tabs');
+  const TA = root.SonoTabAccess;
+  if (!TA) { el.innerHTML = '<div class="err">تعذّر تحميل وحدة التابات.</div>'; return; }
+  el.innerHTML = '<h3>التحكم في التابات</h3><div class="note">جارٍ التحميل…</div>';
+
+  let users;
+  try { users = await listUsers(); }
+  catch (e) { el.innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+
+  const sb = AU().client();
+  const local = AU().mode() !== 'supabase';
+  let saved = {};
+  try { saved = await TA.listAll(sb); } catch (e) {}
+
+  const TABS = TA.ALL_TABS;
+  const rows = users.filter(u => RO().normalize(u.role) !== 'سوبر أدمن');
+
+  el.innerHTML = `
+    <h3>التحكم في التابات</h3>
+    <div class="note">
+      حدّد أي تابات يشوفها كل مستخدم. السوبر أدمن دائماً يشوف كل التابات ولا يظهر في هذه القائمة.
+      اترك كل المربعات مؤشّرة ليشوف المستخدم كل التابات (هذا هو الوضع الافتراضي لأي مستخدم جديد).
+      ${local ? '<br><b>أنت في الوضع المحلي</b> — الإعداد محفوظ في هذا المتصفح فقط.' : ''}
+    </div>
+    <div id="taMsg"></div>
+    ${rows.length ? `<div class="tscroll"><table class="utable">
+      <thead><tr><th>المستخدم</th>${TABS.map(t => `<th>${esc(t.label)}</th>`).join('')}<th></th></tr></thead>
+      <tbody>
+        ${rows.map(u => {
+          const cfg = local ? saved[u.email] : saved[u.key];
+          const allowed = Array.isArray(cfg) && cfg.length ? cfg : TABS.map(t => t.key);
+          return `<tr data-k="${esc(u.key)}" data-email="${esc(u.email)}">
+            <td>${esc(u.name || u.email)}<div style="font-size:11px;color:var(--muted)">${esc(u.role)}</div></td>
+            ${TABS.map(t => `<td style="text-align:center">
+              <input type="checkbox" class="taChk" data-tab="${esc(t.key)}" ${allowed.includes(t.key) ? 'checked' : ''}></td>`).join('')}
+            <td style="white-space:nowrap"><button class="btn ghost sm taSave">حفظ</button></td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table></div>` : '<p class="note">لا يوجد مستخدمون غير السوبر أدمن بعد.</p>'}`;
+
+  el.querySelectorAll('tr[data-k]').forEach(tr => {
+    const btn = tr.querySelector('.taSave');
+    if (!btn) return;
+    btn.onclick = async () => {
+      const key = tr.dataset.k, email = tr.dataset.email;
+      const checked = [...tr.querySelectorAll('.taChk')].filter(c => c.checked).map(c => c.dataset.tab);
+      if (!checked.length) { msg('taMsg', 'err', 'المفروض يفضل تاب واحد على الأقل مؤشّر لكل مستخدم.'); return; }
+      btn.disabled = true; btn.textContent = 'جارٍ الحفظ…';
+      try {
+        await TA.save(sb, key, checked, email);
+        msg('taMsg', 'ok', 'تم حفظ تابات ' + (tr.children[0].textContent || email) + '.');
+      } catch (e) { msg('taMsg', 'err', e.message); }
+      finally { btn.disabled = false; btn.textContent = 'حفظ'; }
+    };
+  });
+}
+
+/* ============================================================
    واجهة إعدادات الذكاء الاصطناعي
    ============================================================ */
 const MODELS = {
@@ -369,9 +432,11 @@ function showTab(t) {
   document.querySelectorAll('.mtabs button').forEach(b =>
     b.setAttribute('aria-selected', b.dataset.c === t ? 'true' : 'false'));
   $('con-users').classList.toggle('hide', t !== 'users');
+  $('con-tabs').classList.toggle('hide', t !== 'tabs');
   $('con-ai').classList.toggle('hide', t !== 'ai');
   $('con-diag').classList.toggle('hide', t !== 'diag');
   if (t === 'users') renderUsers();
+  else if (t === 'tabs') renderTabAccess();
   else if (t === 'ai') renderAi();
   else renderDiag();
 }

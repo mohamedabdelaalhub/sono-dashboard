@@ -23,6 +23,7 @@ const $ = id => document.getElementById(id) || (console.warn('عنصر غير م
 const state = {
   files: [], income: [], expense: [], status: [], datasets: [],
   A: null, E: null, cmp: null, C: null, cSources: null, tab: 'sum', schedule: null,
+  tabAccess: null,   /* null = غير مقيّد (كل التابات) · وإلا مصفوفة مفاتيح التابات المسموحة */
   ctx: { clinic: CFG.clinicName || '', branch: CFG.branchName || '' }
 };
 
@@ -158,6 +159,11 @@ async function enterApp() {
   const u = AU.user();
   busy(true, 'جارٍ تحميل الإعدادات…');
   try { await ST.load(AU.client(), u, RO.isSuper(u)); } catch (e) {} finally { busy(false); }
+  try {
+    state.tabAccess = root.SonoTabAccess
+      ? await root.SonoTabAccess.myTabs(AU.client(), u, RO.isSuper(u))
+      : null;
+  } catch (e) { state.tabAccess = null; }
 
   $('who').textContent = u.name;
   $('uav').textContent = (u.name || '؟').trim().charAt(0);
@@ -182,6 +188,24 @@ function applyPerms() {
   if (!RO.can(u, 'upload'))
     $('welcome').innerHTML = '<b>لا توجد بيانات معروضة</b>دورك الحالي «' + u.role +
       '» لا يسمح برفع الملفات. اطلب من مدير المركز رفع ملف الفترة.';
+  applyTabAccessFilter();
+}
+
+/* ---------- التحكم في التابات المسموحة لكل مستخدم ----------
+   state.tabAccess = null معناها غير مقيّد (كل التابات)، وإلا مصفوفة مفاتيح.
+   applyTabAccessFilter() تُخفي فقط — لا تُظهر أبداً — فهي إضافة آمنة فوق أي منطق ظهور/إخفاء موجود. */
+function isTabAllowed(t) {
+  if (!state.tabAccess) return true;
+  return state.tabAccess.includes(t);
+}
+function applyTabAccessFilter() {
+  document.querySelectorAll('nav.tabs button[data-t]').forEach(b => {
+    if (!isTabAllowed(b.dataset.t)) b.classList.add('hide');
+  });
+}
+function firstAllowedTab() {
+  const order = ['sum', 'kpi', 'risk', 'rec', 'plan', 'dist', 'ai', 'sch', 'rep', 'arch', 'data'];
+  return order.find(isTabAllowed) || 'sum';
 }
 function gate(perm) {
   if (RO.can(AU.user(), perm)) return true;
@@ -548,6 +572,7 @@ function initTabs() {
 
 function renderTab(t, force) {
   const u = AU.user();
+  if (t !== 'cmp' && !isTabAllowed(t)) t = firstAllowedTab();
   if (t === 'sch') {
     state.tab = t; markTabs(t); showPane(t);
     $('welcome').classList.add('hide');
@@ -592,6 +617,7 @@ function renderTab(t, force) {
 function markTabs(t) {
   document.querySelectorAll('nav.tabs button').forEach(b =>
     b.setAttribute('aria-selected', b.dataset.t === t ? 'true' : 'false'));
+  applyTabAccessFilter();
 }
 function showPane(t) {
   Object.keys(PANES).forEach(k => $(PANES[k]).classList.toggle('hide', k !== t));
