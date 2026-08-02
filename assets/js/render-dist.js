@@ -59,18 +59,27 @@ function render(el, A) {
 
       <div class="frow">
         <label class="toggle" style="flex:1;min-width:220px">
-          <input type="radio" name="distMode" id="modeFull" value="full" ${st.mode !== 'retain' ? 'checked' : ''}>
+          <input type="radio" name="distMode" id="modeFull" value="full" ${st.mode === 'full' ? 'checked' : ''}>
           <div><b>توزيع كامل 100%</b><span>كل صافي الربح يُوزَّع على الشركاء حسب نسبهم.</span></div>
         </label>
         <label class="toggle" style="flex:1;min-width:220px">
           <input type="radio" name="distMode" id="modeRetain" value="retain" ${st.mode === 'retain' ? 'checked' : ''}>
           <div><b>احتفاظ بنسبة قبل التوزيع</b><span>جزء من الصافي يُحجز أولاً (مثلاً للاستثمار)، والباقي يُوزَّع على الشركاء.</span></div>
         </label>
+        <label class="toggle" style="flex:1;min-width:220px">
+          <input type="radio" name="distMode" id="modeAmount" value="amount" ${st.mode === 'amount' ? 'checked' : ''}>
+          <div><b>استقطاع مبلغ ثابت</b><span>مبلغ محدد بالجنيه يُخصم أولاً من الصافي، والباقي يُوزَّع على الشركاء.</span></div>
+        </label>
       </div>
 
       <div class="fld narrow" id="retainFld" style="max-width:220px;${st.mode === 'retain' ? '' : 'display:none'}">
         <label for="retainPct">نسبة الاحتفاظ من الصافي %</label>
         <input type="number" id="retainPct" min="0" max="100" step="0.5" value="${st.retainPct || 0}">
+      </div>
+
+      <div class="fld narrow" id="retainAmtFld" style="max-width:220px;${st.mode === 'amount' ? '' : 'display:none'}">
+        <label for="retainAmount">المبلغ المُستقطَع (جنيه)</label>
+        <input type="number" id="retainAmount" min="0" step="1" value="${st.retainAmount || 0}">
       </div>
 
       <div class="note" style="margin-top:6px;margin-bottom:8px"><b>الشركاء ونسبة كل شريك</b></div>
@@ -112,15 +121,24 @@ function partnerRow(p) {
 function wire(el, A) {
   const rowsEl = el.querySelector('#partnersRows');
   const retainFld = el.querySelector('#retainFld');
+  const retainAmtFld = el.querySelector('#retainAmtFld');
 
   el.querySelectorAll('input[name=distMode]').forEach(r => r.onchange = () => {
-    st.mode = el.querySelector('#modeRetain').checked ? 'retain' : 'full';
+    const checked = el.querySelector('input[name=distMode]:checked');
+    st.mode = checked ? checked.value : 'full';
     retainFld.style.display = st.mode === 'retain' ? '' : 'none';
+    retainAmtFld.style.display = st.mode === 'amount' ? '' : 'none';
     persist(el);
   });
 
   el.querySelector('#retainPct').oninput = e => {
     st.retainPct = clampPct(e.target.value);
+    persist(el);
+  };
+
+  el.querySelector('#retainAmount').oninput = e => {
+    const v = +e.target.value;
+    st.retainAmount = isFinite(v) ? Math.max(0, v) : 0;
     persist(el);
   };
 
@@ -196,7 +214,10 @@ function doDistribute(el, A) {
 
   const net = k.net;
   const retainPct = st.mode === 'retain' ? clampPct(st.retainPct) : 0;
-  const retained = st.mode === 'retain' ? net * (retainPct / 100) : 0;
+  const retainAmt = st.mode === 'amount' ? Math.max(0, +st.retainAmount || 0) : 0;
+  const retained = st.mode === 'retain' ? net * (retainPct / 100)
+                  : st.mode === 'amount' ? retainAmt
+                  : 0;
   const distributable = net - retained;
 
   const rows = names.map(p => {
@@ -214,6 +235,8 @@ function doDistribute(el, A) {
       <h2>نتيجة التوزيع</h2>
       <div class="note">${st.mode === 'retain'
         ? `صافي الربح ${eg(net)} — احتفاظ ${pc(retainPct / 100)} (${eg(retained)}) — المتبقي للتوزيع ${eg(distributable)}`
+        : st.mode === 'amount'
+        ? `صافي الربح ${eg(net)} — استقطاع مبلغ ثابت ${eg(retainAmt)} — المتبقي للتوزيع ${eg(distributable)}`
         : `صافي الربح بالكامل قابل للتوزيع: ${eg(distributable)}`}</div>
       <div class="tscroll"><table>
         <thead><tr><th>الشريك</th><th>النسبة</th><th>النصيب</th></tr></thead>

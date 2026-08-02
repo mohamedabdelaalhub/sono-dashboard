@@ -7,7 +7,7 @@
 const LS_KEY = 'sono_partners_v1';
 
 function defaults() {
-  return { mode: 'full', retainPct: 0, partners: [] };
+  return { mode: 'full', retainPct: 0, retainAmount: 0, partners: [] };
 }
 
 function load() {
@@ -17,8 +17,9 @@ function load() {
     const p = JSON.parse(raw);
     const d = defaults();
     return {
-      mode: p.mode === 'retain' ? 'retain' : 'full',
+      mode: (p.mode === 'retain' || p.mode === 'amount') ? p.mode : 'full',
       retainPct: isFinite(p.retainPct) ? +p.retainPct : d.retainPct,
+      retainAmount: isFinite(p.retainAmount) ? +p.retainAmount : d.retainAmount,
       partners: Array.isArray(p.partners)
         ? p.partners.filter(x => x && typeof x === 'object').map(x => ({
             id: x.id || uid(), name: String(x.name || ''), pct: x.pct === '' || x.pct == null ? '' : +x.pct
