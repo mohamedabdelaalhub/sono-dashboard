@@ -90,6 +90,16 @@ function render(el, A) {
         <span class="note" id="pctTotalNote" style="margin:0"></span>
       </div>
 
+      <div class="note" style="margin-top:18px;margin-bottom:8px">
+        <b>مبالغ دفعها شركاء من مالهم الخاص لصالح المركز (تُرد لهم من التوزيع)</b><br>
+        بيتخصم من حصص الشركاء عند التوزيع، وبيتضاف لحساب الشريك اللي دفعها — من غير ما يغيّر رقم «إجمالي المصروفات» في الأعلى.
+      </div>
+      <div id="advRows">${st.advances.map(advRow).join('')}</div>
+      <div class="frow" style="margin-top:2px">
+        <button class="btn ghost sm" id="btnAddAdvance" type="button">+ إضافة مبلغ مسترد</button>
+      </div>
+      <datalist id="partnerNamesList">${st.partners.filter(p => p.name && p.name.trim()).map(p => `<option value="${esc(p.name)}">`).join('')}</datalist>
+
       <div class="frow" style="margin-top:14px">
         <button class="btn" id="btnDistribute" type="button" ${fin ? '' : 'disabled'}>توزيع</button>
       </div>
@@ -112,6 +122,18 @@ function partnerRow(p) {
       <input type="number" class="pPct" placeholder="النسبة %" min="0" max="100" step="0.5" value="${p.pct === '' || p.pct == null ? '' : esc(String(p.pct))}">
     </div>
     <button class="btn ghost sm pDel" type="button" title="حذف الشريك">حذف</button>
+  </div>`;
+}
+
+function advRow(a) {
+  return `<div class="frow arow" data-id="${esc(a.id)}" style="margin-bottom:8px">
+    <div class="fld" style="flex:2;min-width:200px;margin-bottom:0">
+      <input type="text" class="aName" list="partnerNamesList" placeholder="اسم الشريك اللي دفع" value="${esc(a.name || '')}">
+    </div>
+    <div class="fld narrow" style="min-width:140px;margin-bottom:0">
+      <input type="number" class="aAmt" placeholder="المبلغ (جنيه)" min="0" step="1" value="${a.amount === '' || a.amount == null ? '' : esc(String(a.amount))}">
+    </div>
+    <button class="btn ghost sm aDel" type="button" title="حذف">حذف</button>
   </div>`;
 }
 
@@ -150,19 +172,56 @@ function wire(el, A) {
     const inp = rowsEl.querySelector(`.prow[data-id="${cssEsc(p.id)}"] .pName`);
     if (inp) inp.focus();
     updateTotalNote(el);
+    refreshPartnerNamesList(el);
     persist(el);
   };
 
   rowsEl.querySelectorAll('.prow').forEach(row => bindRow(row, el));
 
+  const advRowsEl = el.querySelector('#advRows');
+  el.querySelector('#btnAddAdvance').onclick = () => {
+    const a = { id: PS().uid(), name: '', amount: '' };
+    st.advances.push(a);
+    advRowsEl.insertAdjacentHTML('beforeend', advRow(a));
+    bindAdvRow(advRowsEl.querySelector(`.arow[data-id="${cssEsc(a.id)}"]`), el);
+    const inp = advRowsEl.querySelector(`.arow[data-id="${cssEsc(a.id)}"] .aName`);
+    if (inp) inp.focus();
+    persist(el);
+  };
+  advRowsEl.querySelectorAll('.arow').forEach(row => bindAdvRow(row, el));
+
   el.querySelector('#btnDistribute').onclick = () => doDistribute(el, A);
+}
+
+function refreshPartnerNamesList(el) {
+  const dl = el.querySelector('#partnerNamesList');
+  if (!dl) return;
+  dl.innerHTML = st.partners.filter(p => p.name && p.name.trim())
+    .map(p => `<option value="${esc(p.name)}">`).join('');
+}
+
+function bindAdvRow(row, el) {
+  if (!row) return;
+  const id = row.dataset.id;
+  const find = () => st.advances.find(a => a.id === id);
+  row.querySelector('.aName').oninput = e => { const a = find(); if (a) a.name = e.target.value; persist(el); };
+  row.querySelector('.aAmt').oninput  = e => {
+    const a = find();
+    if (a) { const v = +e.target.value; a.amount = e.target.value === '' ? '' : (isFinite(v) ? Math.max(0, v) : 0); }
+    persist(el);
+  };
+  row.querySelector('.aDel').onclick = () => {
+    st.advances = st.advances.filter(a => a.id !== id);
+    row.remove();
+    persist(el);
+  };
 }
 
 function bindRow(row, el) {
   if (!row) return;
   const id = row.dataset.id;
   const find = () => st.partners.find(p => p.id === id);
-  row.querySelector('.pName').oninput = e => { const p = find(); if (p) p.name = e.target.value; persist(el); };
+  row.querySelector('.pName').oninput = e => { const p = find(); if (p) p.name = e.target.value; refreshPartnerNamesList(el); persist(el); };
   row.querySelector('.pPct').oninput  = e => { const p = find(); if (p) p.pct = e.target.value === '' ? '' : clampPct(e.target.value); updateTotalNote(el); persist(el); };
   row.querySelector('.pDel').onclick  = () => {
     st.partners = st.partners.filter(p => p.id !== id);
@@ -174,6 +233,7 @@ function bindRow(row, el) {
       bindRow(rowsEl.querySelector('.prow'), el);
     }
     updateTotalNote(el);
+    refreshPartnerNamesList(el);
     persist(el);
   };
 }
@@ -184,6 +244,7 @@ function clampPct(v) {
   return Math.max(0, Math.min(100, v));
 }
 function cssEsc(s) { return String(s).replace(/["\\]/g, '\\$&'); }
+function normName(s) { return String(s || '').trim().replace(/\s+/g, ' '); }
 
 function persist(el) { PS().save(st); }
 
@@ -220,13 +281,26 @@ function doDistribute(el, A) {
                   : 0;
   const distributable = net - retained;
 
+  /* مبالغ دفعها شركاء من مالهم الخاص — تُرد لهم، وتُخصم من المبلغ اللي يُوزَّع بالنسب.
+     لا تؤثر إطلاقاً على «إجمالي المصروفات» المعروض أعلى التاب — حساب داخلي هنا فقط. */
+  const advEntries = st.advances.filter(a => a.name && a.name.trim() && isFinite(+a.amount) && +a.amount > 0)
+    .map(a => ({ name: normName(a.name), amount: +a.amount }));
+  const partnerNames = names.map(p => normName(p.name));
+  const unmatchedAdv = advEntries.filter(a => !partnerNames.includes(a.name));
+  const totalAdvances = advEntries.reduce((s, a) => s + a.amount, 0);
+  const poolForPct = distributable - totalAdvances;
+  const hasAdvances = advEntries.length > 0;
+
   const rows = names.map(p => {
     const pct = isFinite(+p.pct) ? +p.pct : 0;
-    return { name: p.name.trim(), pct, amount: distributable * (pct / 100) };
+    const baseShare = poolForPct * (pct / 100);
+    const advance = advEntries.filter(a => a.name === normName(p.name)).reduce((s, a) => s + a.amount, 0);
+    return { name: p.name.trim(), pct, baseShare, advance, amount: baseShare + advance };
   });
   const totalPct = rows.reduce((s, r) => s + r.pct, 0);
   const totalAmount = rows.reduce((s, r) => s + r.amount, 0);
-  const remaining = distributable - totalAmount;
+  const unmatchedTotal = unmatchedAdv.reduce((s, a) => s + a.amount, 0);
+  const remaining = distributable - totalAmount - unmatchedTotal;
   const offTotal = Math.abs(totalPct - 100) > 0.05;
 
   const resEl = el.querySelector('#distResult');
@@ -237,17 +311,23 @@ function doDistribute(el, A) {
         ? `صافي الربح ${eg(net)} — احتفاظ ${pc(retainPct / 100)} (${eg(retained)}) — المتبقي للتوزيع ${eg(distributable)}`
         : st.mode === 'amount'
         ? `صافي الربح ${eg(net)} — استقطاع مبلغ ثابت ${eg(retainAmt)} — المتبقي للتوزيع ${eg(distributable)}`
-        : `صافي الربح بالكامل قابل للتوزيع: ${eg(distributable)}`}</div>
+        : `صافي الربح بالكامل قابل للتوزيع: ${eg(distributable)}`}
+        ${hasAdvances ? ` — مبالغ مستردة للشركاء ${eg(totalAdvances)} — الباقي يُوزَّع بالنسب ${eg(poolForPct)}` : ''}</div>
       <div class="tscroll"><table>
-        <thead><tr><th>الشريك</th><th>النسبة</th><th>النصيب</th></tr></thead>
+        <thead><tr><th>الشريك</th><th>النسبة</th>${hasAdvances ? '<th>نصيب النسبة</th><th>مبلغ مسترد</th>' : ''}<th>${hasAdvances ? 'الإجمالي' : 'النصيب'}</th></tr></thead>
         <tbody>
           ${rows.map(r => `<tr>
             <td>${esc(r.name)}</td>
             <td class="n">${r.pct.toFixed(1)}%</td>
+            ${hasAdvances ? `<td class="n">${fmt(r.baseShare)} جنيه</td><td class="n">${r.advance ? numS(fmt(r.advance)) + ' جنيه' : '—'}</td>` : ''}
             <td class="n">${numS(fmt(r.amount))} جنيه</td>
           </tr>`).join('')}
         </tbody>
       </table></div>
+      ${unmatchedAdv.length ? `<div class="notice" style="margin-top:14px">
+        <h3>فيه مبالغ مستردة لم تُطابَق باسم أي شريك</h3>
+        <ul>${unmatchedAdv.map(a => `<li><span>—</span><div>«${esc(a.name)}» — ${eg(a.amount)}: تأكد إن الاسم مطابق تماماً لاسم الشريك في القائمة أعلاه.</div></li>`).join('')}</ul>
+      </div>` : ''}
       ${offTotal ? `<div class="notice" style="margin-top:14px">
         <h3>مجموع النسب ${totalPct.toFixed(1)}% وليس 100%</h3>
         <ul><li><span>—</span><div>${remaining > 0

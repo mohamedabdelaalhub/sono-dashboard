@@ -7,7 +7,7 @@
 const LS_KEY = 'sono_partners_v1';
 
 function defaults() {
-  return { mode: 'full', retainPct: 0, retainAmount: 0, partners: [] };
+  return { mode: 'full', retainPct: 0, retainAmount: 0, partners: [], advances: [] };
 }
 
 function load() {
@@ -24,7 +24,12 @@ function load() {
         ? p.partners.filter(x => x && typeof x === 'object').map(x => ({
             id: x.id || uid(), name: String(x.name || ''), pct: x.pct === '' || x.pct == null ? '' : +x.pct
           }))
-        : d.partners
+        : d.partners,
+      advances: Array.isArray(p.advances)
+        ? p.advances.filter(x => x && typeof x === 'object').map(x => ({
+            id: x.id || uid(), name: String(x.name || ''), amount: x.amount === '' || x.amount == null ? '' : +x.amount
+          }))
+        : d.advances
     };
   } catch (e) { return defaults(); }
 }
