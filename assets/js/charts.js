@@ -75,12 +75,18 @@ function hbars(el, rows, opts) {
   opts = opts || {};
   if (!rows.length) { el.innerHTML = '<p class="note">لا توجد بيانات.</p>'; return; }
   const max = Math.max(...rows.map(r => r.value), 1);
-  el.innerHTML = rows.map(r => `
-    <div class="hrow" title="${esc(r.title || r.label)}">
+  el.innerHTML = rows.map((r, i) => `
+    <div class="hrow${opts.onClick ? ' hclick' : ''}" data-idx="${i}" title="${esc(r.title || r.label)}">
       <div class="nm">${esc(r.label)}</div>
       <div class="track"><div class="fill" style="width:${(r.value / max * 100).toFixed(1)}%;background:${r.color || 'var(--petrol)'}"></div></div>
       <div class="amt">${opts.raw ? fmt(r.value) : fmt(r.value)}${opts.suffix || ''}</div>
     </div>`).join('');
+  /* اختياري بحت: لو مفيش onClick يفضل السلوك زي ما هو تماماً */
+  if (opts.onClick) {
+    el.querySelectorAll('.hrow').forEach(node => {
+      node.addEventListener('click', () => opts.onClick(rows[+node.dataset.idx], +node.dataset.idx));
+    });
+  }
 }
 
 /* ============================================================

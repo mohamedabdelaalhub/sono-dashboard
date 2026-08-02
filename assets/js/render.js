@@ -17,6 +17,21 @@ function delta(d, invert) {
   return `<span class="${good ? 'dl-up' : 'dl-dn'}">${up ? '▲' : '▼'} ${Math.abs(d.pct * 100).toFixed(1)}%</span>`;
 }
 
+/* ---------- تخصص الطبيب: مطابقة مع جدول العيادات المحفوظ (لو موجود) ----------
+   قراءة اختيارية بحتة — لو مفيش جدول عيادات محفوظ ترجع فاضية بدون أي خطأ. */
+function specFor(doctorName) {
+  try {
+    const SCH = root.SonoSchedule;
+    const sch = root.SonoApp && root.SonoApp.state && root.SonoApp.state.schedule;
+    if (!SCH || !sch || !sch.doctors || !sch.doctors.length) return '';
+    const k = SCH.docKey(doctorName);
+    if (!k) return '';
+    const m = sch.doctors.find(d => SCH.docKey(d.name) === k
+      || (d.aliases || []).some(a => SCH.docKey(a) === k));
+    return m ? (m.spec || '') : '';
+  } catch (e) { return ''; }
+}
+
 
 /* ============================================================
    كتل التحليلات التشغيلية (insights.js) — تُعرض في كل التابات
@@ -166,6 +181,26 @@ function drawRibbon(A, mode) {
   C.ribbon(el, data, {});
 }
 
+/* ---------- تفاصيل فئة مصروف عند الضغط عليها في «هيكل المصروفات» ---------- */
+function showExpDetail(r) {
+  const el = document.getElementById('cExpDetail');
+  if (!el) return;
+  const already = el.dataset.cat === r.label && !el.classList.contains('hide');
+  if (already) { el.classList.add('hide'); el.dataset.cat = ''; el.innerHTML = ''; return; }
+  const rows = (r.rows || []).slice().sort((a, b) => b.amount - a.amount);
+  el.dataset.cat = r.label;
+  el.classList.remove('hide');
+  el.innerHTML = `
+    <div style="font-size:13px;font-weight:700;margin-bottom:6px">
+      حالات «${esc(r.label)}» — ${fmt(r.value)} جنيه (${rows.length} حالة)</div>
+    <div class="tscroll"><table>
+      <thead><tr><th>التاريخ</th><th>البيان</th><th>المبلغ</th></tr></thead>
+      <tbody>${rows.length ? rows.map(x => `<tr>
+        <td>${esc(x.date || '—')}</td><td>${esc(x.bayan || '—')}</td><td class="n">${fmt(x.amount)}</td></tr>`).join('')
+        : '<tr><td colspan="3" style="color:var(--muted)">لا توجد صفوف تفصيلية لهذه الفئة.</td></tr>'}</tbody>
+    </table></div>`;
+}
+
 /* ============================================================
    2) المؤشرات
    ============================================================ */
@@ -225,22 +260,25 @@ function renderKpi(el, A, E, cmp) {
       <h2>مقارنة الأطباء — الأتعاب المصروفة</h2>
       <div class="note">مصدرها بند «أتعاب د/…» في جانب المنصرف. لا يوجد ربط بين الطبيب والإيصال، لذا لا يمكن حساب إيراد كل طبيب.</div>
       <div class="tscroll"><table>
-        <thead><tr><th>الطبيب</th><th>الأتعاب</th><th>عدد الدفعات</th><th>أيام النشاط</th><th>متوسط الدفعة</th><th style="width:24%">الحصة</th></tr></thead>
+        <thead><tr><th>الطبيب</th><th>التخصص</th><th>الأتعاب</th><th>عدد الدفعات</th><th>أيام النشاط</th><th>متوسط الدفعة</th><th style="width:24%">الحصة</th></tr></thead>
         <tbody>${A.doctors.map(d => `
           <tr><td>د/ ${esc(d.doctor)}</td>
+            <td>${esc(specFor(d.doctor) || '—')}</td>
             <td class="n">${fmt(d.fees)}</td><td class="n">${d.payouts}</td><td class="n">${d.days}</td>
             <td class="n">${fmt(d.avg)}</td>
             <td><div class="track" style="height:14px"><div class="fill" style="width:${(d.share / (A.doctors[0].share || 1) * 100).toFixed(1)}%"></div></div>
                 <span class="num" style="font-size:11px;color:var(--muted)">${pc(d.share)}</span></td></tr>`).join('')}
         </tbody></table></div>
+      <div class="note" style="margin-top:8px">التخصص يُطابَق تلقائياً من «جدول العيادات» المحفوظ لديك بالاسم — لو الطبيب مش ظاهر تخصصه، تأكد إن اسمه في الجدول قريب من اسمه هنا.</div>
     </div>
 
     ${A.status ? statusBlocks(A.status) : ''}
 
     <div class="grid2">
       <div class="card"><h2>هيكل المصروفات</h2>
-        <div class="note">إجمالي المنصرف ${eg(k.cost)}</div>
-        <div id="cExp"></div></div>
+        <div class="note">إجمالي المنصرف ${eg(k.cost)} — اضغط أي فئة لعرض حالاتها بالتفصيل</div>
+        <div id="cExp"></div>
+        <div id="cExpDetail" class="hide" style="margin-top:10px"></div></div>
       <div class="card"><h2>المستهلكات المرصودة من الملاحظات</h2>
         <div class="note">استُخرجت نصياً من حقل ملاحظات الإيصال — ليست دفتر مخزون</div>
         <div id="cSup"></div></div>
@@ -257,7 +295,9 @@ function renderKpi(el, A, E, cmp) {
   C.hbars(document.getElementById('cSvc'),
     A.services.slice(0, 12).map(s => ({ label: s.key.length > 34 ? s.key.slice(0, 33) + '…' : s.key, title: s.key, value: s.total })));
   C.hbars(document.getElementById('cExp'),
-    A.expCats.map(c => ({ label: c.cat, value: c.total, color: c.cat === 'غير مصنّف' ? 'var(--clay)' : 'var(--petrol)' })));
+    A.expCats.map(c => ({ label: c.cat, value: c.total, rows: c.rows,
+                          color: c.cat === 'غير مصنّف' ? 'var(--clay)' : 'var(--petrol)' })),
+    { onClick: r => showExpDetail(r) });
   if (A.status) {
     const dc = document.getElementById('cDisc');
     if (dc) C.hbars(dc, A.status.cats.filter(c => c.disc > 0)

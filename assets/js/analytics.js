@@ -145,7 +145,7 @@ function analyze(income, expense, meta) {
   /* --- المصروفات --- */
   const expCats = groupSum(expense, r => r.cat, r => r.amount)
     .map(c => ({ cat: c.key, total: c.total, count: c.count, pct: cost ? c.total / cost : 0,
-                 pctRev: revenue ? c.total / revenue : 0, group: c.items[0].group }));
+                 pctRev: revenue ? c.total / revenue : 0, group: c.items[0].group, rows: c.items }));
   const expGroups = groupSum(expense, r => r.group, r => r.amount)
     .map(g => ({ group: g.key, total: g.total, pct: cost ? g.total / cost : 0 }));
   const fixedCost = sum(expense.filter(e => e.group === 'ثابت' || e.group === 'شبه ثابت'), e => e.amount);

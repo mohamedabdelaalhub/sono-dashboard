@@ -236,6 +236,8 @@ svg{display:block;width:100%;overflow:visible}
 .fill{height:100%;border-radius:5px;background:var(--petrol);transition:width .5s cubic-bezier(.22,1,.36,1)}
 .hrow .amt{font-family:var(--f-num);font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--muted);
   white-space:nowrap;min-width:64px;text-align:left}
+.hrow.hclick{cursor:pointer;border-radius:7px;transition:background .15s}
+.hrow.hclick:hover{background:var(--paper)}
 
 /* ---------- الجداول ---------- */
 table{width:100%;border-collapse:collapse;font-size:13px}
