@@ -146,7 +146,10 @@ function findPeriod(rows) {
 /* ============================================================
    الواجهة: اقرأ مصنّفاً كاملاً
    ============================================================ */
-function parse(wb, fileName) {
+/* يقرأ كل الشيتات داخل المصنّف ويعيد مصفوفة بكل التقارير المتطابقة
+   (شيت لكل تقرير مختلف — مش أول تطابق بس) */
+function parseAll(wb, fileName) {
+  const out = [];
   for (const sn of wb.SheetNames) {
     const ws = wb.Sheets[sn];
     if (!ws) continue;
@@ -156,15 +159,20 @@ function parse(wb, fileName) {
     if (!found) continue;
     const data = extract(rows, found);
     if (!data.length && !found.def.allowEmpty) continue;
-    return {
+    out.push({
       id: found.def.id, name: found.def.name, group: found.def.group,
       info: found.def.info, rows: data, period: findPeriod(rows),
       columns: Object.keys(found.map), file: fileName, sheet: sn,
       confidence: found.score, empty: !data.length
-    };
+    });
   }
-  return null;
+  return out;
 }
 
-root.SonoAuto = { parse, detect, extract, findPeriod };
+/* التوافق مع الكود القديم: أول تطابق فقط */
+function parse(wb, fileName) {
+  return parseAll(wb, fileName)[0] || null;
+}
+
+root.SonoAuto = { parse, parseAll, detect, extract, findPeriod };
 })(window);

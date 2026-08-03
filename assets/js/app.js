@@ -287,22 +287,33 @@ async function handleFiles(list) {
       if (st && st.rows.length) {
         st.warnings.forEach(w => warnings.push(f.name + ': ' + w));
         /* نفس الملف يُقرأ أيضاً بالمحرك العام: منه يأتي الإيراد والتحليل التشغيلي،
-           بينما تتولّى قراءة «بيان الحالة» تحليل هامش الأطباء. */
-        const auSt = root.SonoAuto ? root.SonoAuto.parse(wb, f.name) : null;
-        if (auSt) state.datasets.push(auSt);
+           بينما تتولّى قراءة «بيان الحالة» تحليل هامش الأطباء.
+           الملف قد يحتوي أكثر من شيت مطابق — نقرأها كلها لا أول واحد فقط. */
+        const auAllSt = root.SonoAuto ? root.SonoAuto.parseAll(wb, f.name) : [];
+        auAllSt.forEach(d => state.datasets.push(d));
+        const auSt = auAllSt[0] || null;
         state.files.push({ name: f.name, kind: 'status', income: [], expense: [],
                            status: st.rows, period: st.period,
                            reportId: auSt ? auSt.id : '', reportName: auSt ? auSt.name : '',
                            rows: auSt ? auSt.rows.length : st.rows.length });
+        /* شيتات إضافية مطابقة داخل نفس الملف — شريحة لكل واحدة */
+        auAllSt.slice(1).forEach(d => {
+          state.files.push({ name: `${f.name} — ${d.sheet}`, kind: 'report', reportId: d.id,
+                             reportName: d.name, income: [], expense: [], status: [], rows: d.rows.length });
+        });
         continue;
       }
 
-      /* ٢) أي تقرير معروف من نظام المركز (يتجاهل ملفات الخزينة تلقائياً) */
-      const au = root.SonoAuto ? root.SonoAuto.parse(wb, f.name) : null;
-      if (au) {
-        state.datasets.push(au);
-        state.files.push({ name: f.name, kind: 'report', reportId: au.id, reportName: au.name,
-                           income: [], expense: [], status: [], rows: au.rows.length });
+      /* ٢) أي تقرير معروف من نظام المركز (يتجاهل ملفات الخزينة تلقائياً)
+         — نقرأ كل الشيتات المطابقة داخل نفس الملف، لا أول شيت بس */
+      const auAll = root.SonoAuto ? root.SonoAuto.parseAll(wb, f.name) : [];
+      if (auAll.length) {
+        auAll.forEach((au, i) => {
+          state.datasets.push(au);
+          state.files.push({ name: i === 0 ? f.name : `${f.name} — ${au.sheet}`, kind: 'report',
+                             reportId: au.id, reportName: au.name,
+                             income: [], expense: [], status: [], rows: au.rows.length });
+        });
         continue;
       }
 
