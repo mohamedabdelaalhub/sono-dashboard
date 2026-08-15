@@ -178,6 +178,7 @@ async function enterApp() {
   $('tabs').classList.remove('hide');
   applyPerms();
   loadSavedSchedule();
+  if (isAmidaInvestor()) renderTab('amida');
 }
 
 function applyPerms() {
@@ -186,7 +187,9 @@ function applyPerms() {
   $('drop').classList.toggle('hide', !RO.can(u, 'upload'));
   $('tabData').classList.toggle('hide', !RO.can(u, 'data'));
   $('tabAi').classList.toggle('hide', !RO.can(u, 'useAi'));
-  if (!RO.can(u, 'upload'))
+  if (isAmidaInvestor())
+    $('welcome').innerHTML = '<b>مرحباً بك</b>اضغط تاب «توزيع أرباح الأميدا» أعلى الصفحة لعرض توزيعك.';
+  else if (!RO.can(u, 'upload'))
     $('welcome').innerHTML = '<b>لا توجد بيانات معروضة</b>دورك الحالي «' + u.role +
       '» لا يسمح برفع الملفات. اطلب من مدير المركز رفع ملف الفترة.';
   applyTabAccessFilter();
@@ -198,7 +201,11 @@ function applyPerms() {
 /* تابات حساسة: مخفية افتراضياً عن الجميع (حتى لو tabAccess = null أي «غير مقيّد»)
    إلا لو السوبر أدمن، أو مُنحت صراحة لهذا المستخدم من لوحة التحكم. */
 const SENSITIVE_TABS = ['amida'];
+/* دور «مستثمر الأميدا»: يشوف تاب توزيع أرباح الأميدا فقط — لا شيء غيره إطلاقاً،
+   بصرف النظر عن أي منح فردي من «التابات». الدور نفسه هو المنح. */
+function isAmidaInvestor() { return RO.normalize((AU.user() || {}).role) === 'مستثمر الأميدا'; }
 function isTabAllowed(t) {
+  if (isAmidaInvestor()) return t === 'amida';
   if (SENSITIVE_TABS.includes(t)) {
     if (RO.isSuper(AU.user())) return true;
     return !!(state.tabAccess && state.tabAccess.includes(t));
@@ -212,6 +219,7 @@ function applyTabAccessFilter() {
   });
 }
 function firstAllowedTab() {
+  if (isAmidaInvestor()) return 'amida';
   const order = ['sum', 'kpi', 'risk', 'rec', 'plan', 'dist', 'roi', 'ai', 'sch', 'rep', 'arch', 'data'];
   return order.find(isTabAllowed) || 'sum';
 }
@@ -675,7 +683,9 @@ function renderTab(t, force) {
   markTabs(t);
   if (force) Object.keys(RENDERED).forEach(k => delete RENDERED[k]);
   showPane(t);
-  if (!state.A) { $('welcome').classList.remove('hide'); return; }
+  /* تابات مستقلة عن تحليل الخزينة — لها محتواها الخاص حتى بدون رفع أي ملف */
+  const NO_DATA_NEEDED = ['dist', 'roi', 'amida'];
+  if (!state.A && !NO_DATA_NEEDED.includes(t)) { $('welcome').classList.remove('hide'); return; }
   $('welcome').classList.add('hide');
   if (RENDERED[t]) { if (t === 'sum') RD.drawRibbon(state.A, 'd'); return; }
   draw(t, $(PANES[t]));

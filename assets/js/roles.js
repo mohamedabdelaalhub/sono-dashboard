@@ -9,14 +9,16 @@ const ROLES = [
   { key: 'سوبر أدمن', desc: 'تحكم كامل + إدارة الأدمنز + مفتاح الذكاء الاصطناعي' },
   { key: 'مدير',      desc: 'كل اللوحة والتصدير، بدون إدارة مستخدمين' },
   { key: 'محاسب',     desc: 'كل اللوحة والتصدير والبيانات التفصيلية' },
-  { key: 'مستخدم',    desc: 'اطّلاع فقط — بدون تصدير ولا بيانات تفصيلية' }
+  { key: 'مستخدم',    desc: 'اطّلاع فقط — بدون تصدير ولا بيانات تفصيلية' },
+  { key: 'مستثمر الأميدا', desc: 'يشوف تاب «توزيع أرباح الأميدا» فقط — بدون أي تاب أو صلاحية أخرى' }
 ];
 
 const PERMS = {
   'سوبر أدمن': { view: 1, data: 1, export: 1, upload: 1, manageUsers: 1, aiSettings: 1, useAi: 1 },
   'مدير'     : { view: 1, data: 1, export: 1, upload: 1, manageUsers: 0, aiSettings: 0, useAi: 0 },
   'محاسب'    : { view: 1, data: 1, export: 1, upload: 1, manageUsers: 0, aiSettings: 0, useAi: 0 },
-  'مستخدم'   : { view: 1, data: 0, export: 0, upload: 0, manageUsers: 0, aiSettings: 0, useAi: 0 }
+  'مستخدم'   : { view: 1, data: 0, export: 0, upload: 0, manageUsers: 0, aiSettings: 0, useAi: 0 },
+  'مستثمر الأميدا': { view: 1, data: 0, export: 0, upload: 0, manageUsers: 0, aiSettings: 0, useAi: 0 }
 };
 
 /* أسماء قديمة أو بديلة تُعامل كسوبر أدمن */
