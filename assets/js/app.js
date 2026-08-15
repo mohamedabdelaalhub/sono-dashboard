@@ -24,6 +24,7 @@ const state = {
   files: [], income: [], expense: [], status: [], datasets: [],
   A: null, E: null, cmp: null, C: null, cSources: null, tab: 'sum', schedule: null,
   tabAccess: null,   /* null = غير مقيّد (كل التابات) · وإلا مصفوفة مفاتيح التابات المسموحة */
+  metaCampaigns: null, bankWithdrawals: null, metaInvoice: null,   /* تاب «التسويق والعائد» */
   ctx: { clinic: CFG.clinicName || '', branch: CFG.branchName || '' }
 };
 
@@ -194,7 +195,14 @@ function applyPerms() {
 /* ---------- التحكم في التابات المسموحة لكل مستخدم ----------
    state.tabAccess = null معناها غير مقيّد (كل التابات)، وإلا مصفوفة مفاتيح.
    applyTabAccessFilter() تُخفي فقط — لا تُظهر أبداً — فهي إضافة آمنة فوق أي منطق ظهور/إخفاء موجود. */
+/* تابات حساسة: مخفية افتراضياً عن الجميع (حتى لو tabAccess = null أي «غير مقيّد»)
+   إلا لو السوبر أدمن، أو مُنحت صراحة لهذا المستخدم من لوحة التحكم. */
+const SENSITIVE_TABS = ['amida'];
 function isTabAllowed(t) {
+  if (SENSITIVE_TABS.includes(t)) {
+    if (RO.isSuper(AU.user())) return true;
+    return !!(state.tabAccess && state.tabAccess.includes(t));
+  }
   if (!state.tabAccess) return true;
   return state.tabAccess.includes(t);
 }
@@ -204,7 +212,7 @@ function applyTabAccessFilter() {
   });
 }
 function firstAllowedTab() {
-  const order = ['sum', 'kpi', 'risk', 'rec', 'plan', 'dist', 'ai', 'sch', 'rep', 'arch', 'data'];
+  const order = ['sum', 'kpi', 'risk', 'rec', 'plan', 'dist', 'roi', 'ai', 'sch', 'rep', 'arch', 'data'];
   return order.find(isTabAllowed) || 'sum';
 }
 function gate(perm) {
@@ -232,6 +240,7 @@ function initUpload() {
 function clearAll() {
   state.files = []; state.income = []; state.expense = []; state.status = []; state.datasets = [];
   state.adapted = null;
+  state.metaCampaigns = null; state.bankWithdrawals = null; state.metaInvoice = null;
   state.A = null; state.C = null; state.cSources = null;
   $('tabCmp').classList.add('hide'); $('tabRep').classList.add('hide');
   renderChips(); $('toolbar').classList.add('hide');
@@ -272,6 +281,38 @@ async function handleFiles(list) {
         continue;
       }
       const wb = XLSX.read(buf, { type: 'array', cellDates: true, raw: true });
+
+      /* ملفات تاب «التسويق والعائد» — منفصلة تماماً عن تقارير العيادة.
+         تُقرأ كنص UTF-8 صريح لتفادي مشاكل ترميز الحروف العربية داخل CSV. */
+      if (/\.csv$/i.test(f.name) && root.SonoMetaParser) {
+        let wbUtf = null;
+        try {
+          const text = new TextDecoder('utf-8').decode(buf).replace(/^﻿/, '');
+          wbUtf = XLSX.read(text, { type: 'string', raw: true, cellDates: true });
+        } catch (e) { wbUtf = wb; }
+
+        const camp = root.SonoMetaParser.parseCampaigns(wbUtf, f.name);
+        if (camp) {
+          state.metaCampaigns = camp;
+          state.files.push({ name: f.name, kind: 'report', reportId: 'metaCampaigns',
+                             reportName: 'حملات Meta Ads', income: [], expense: [], status: [], rows: camp.rows.length });
+          continue;
+        }
+        const inv = root.SonoMetaParser.parseInvoice(wbUtf, f.name);
+        if (inv) {
+          state.metaInvoice = inv;
+          state.files.push({ name: f.name, kind: 'report', reportId: 'metaInvoice',
+                             reportName: 'فاتورة Meta الرسمية', income: [], expense: [], status: [], rows: inv.rows.length });
+          continue;
+        }
+        const bnk = root.SonoMetaParser.parseBankWithdrawals(wbUtf, f.name, 2026);
+        if (bnk) {
+          state.bankWithdrawals = bnk;
+          state.files.push({ name: f.name, kind: 'report', reportId: 'bankWithdrawals',
+                             reportName: 'كشف سحوبات إعلانات', income: [], expense: [], status: [], rows: bnk.rows.length });
+          continue;
+        }
+      }
 
       /* ١) هل هو «تقرير بيان الحالة المجمع»؟ */
       /* ٠) جدول العيادات — ملف إداري مرجعي */
@@ -501,6 +542,20 @@ function scheduleCtx() {
   };
 }
 
+function roiCtx() {
+  const statusDs = state.datasets.find(d => d.id === 'statusDetail');
+  return {
+    campaigns: state.metaCampaigns,
+    bank: state.bankWithdrawals,
+    invoice: state.metaInvoice,
+    statusRows: statusDs ? statusDs.rows : []
+  };
+}
+
+function amidaCtx() {
+  return { sb: AU.client(), canWrite: true };
+}
+
 /* تحميل الجدول المحفوظ عند فتح التطبيق */
 async function loadSavedSchedule() {
   if (!root.SonoScheduleStore) return;
@@ -572,7 +627,8 @@ function rebuild() {
    التابات
    ============================================================ */
 const PANES = { sum: 'pane-sum', kpi: 'pane-kpi', risk: 'pane-risk', rec: 'pane-rec',
-                plan: 'pane-plan', dist: 'pane-dist', ai: 'pane-ai', sch: 'pane-sch', rep: 'pane-rep',
+                plan: 'pane-plan', dist: 'pane-dist', roi: 'pane-roi', amida: 'pane-amida',
+                ai: 'pane-ai', sch: 'pane-sch', rep: 'pane-rep',
                 cmp: 'pane-cmp', arch: 'pane-arch', data: 'pane-data' };
 const RENDERED = {};
 
@@ -744,7 +800,9 @@ function draw(t, el) {
     risk: () => RD.renderRisks(el, state.A, state.E),
     rec : () => RD.renderRecos(el, state.A, state.E),
     plan: () => RD.renderPlan(el, state.A, state.E, state.ctx),
-    dist: () => root.SonoRenderDist.render(el, state.A),
+    dist : () => root.SonoRenderDist.render(el, state.A),
+    roi  : () => root.SonoRenderRoi.render(el, roiCtx()),
+    amida: () => root.SonoRenderAmida.render(el, amidaCtx()),
     ai  : () => RD.renderAiTab(el, state),
     arch: () => RD.renderArchive(el, state, archiveHandlers()),
     data: () => RD.renderData(el, state.A, state.E),

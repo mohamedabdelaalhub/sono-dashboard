@@ -16,6 +16,8 @@ const ALL_TABS = [
   { key: 'rec',  label: 'التوصيات' },
   { key: 'plan', label: 'خطة العمل' },
   { key: 'dist', label: 'توزيع الأرباح' },
+  { key: 'roi',  label: 'التسويق والعائد' },
+  { key: 'amida', label: 'توزيع أرباح الأميدا (حسّاس — مخفي افتراضياً)' },
   { key: 'ai',   label: 'التحليل الذكي' },
   { key: 'sch',  label: 'جدول العيادات' },
   { key: 'rep',  label: 'التقارير المرفوعة' },

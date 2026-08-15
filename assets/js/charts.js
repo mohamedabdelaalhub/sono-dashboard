@@ -158,5 +158,92 @@ function sparkline(el, values, color) {
       points="${pts.map(p => p.join(',')).join(' ')}"/></svg>`;
 }
 
-root.SonoCharts = { ribbon, hbars, donut, gauge, sparkline, PALETTE, showTip, hideTip, fmt, esc };
+/* ============================================================
+   خط اتجاه بمحاور — لاتجاه الإنفاق أو أي متسلسلة زمنية
+   points: [{x:'2026-03-11', y:420, full:'...'}]
+   ============================================================ */
+function line(el, points, opts) {
+  opts = opts || {};
+  if (!points || !points.length) { el.innerHTML = '<p class="note">لا توجد بيانات.</p>'; return; }
+  const W = 1160, H = 260, PL = 46, PR = 16, PT = 14, PB = 30;
+  const iw = W - PL - PR, ih = H - PT - PB;
+  const maxY = Math.max(...points.map(p => p.y), 1);
+  const n = points.length;
+  const xAt = i => PL + (n > 1 ? iw * i / (n - 1) : iw / 2);
+  const yAt = v => PT + ih - (v / maxY) * ih;
+  const pts = points.map((p, i) => [xAt(i), yAt(p.y)]);
+  const path = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+  const area = path + ` L${pts[pts.length - 1][0].toFixed(1)} ${(PT + ih).toFixed(1)}` +
+               ` L${pts[0][0].toFixed(1)} ${(PT + ih).toFixed(1)} Z`;
+  const gridN = 4;
+  let grid = '';
+  for (let g = 0; g <= gridN; g++) {
+    const y = PT + ih * g / gridN;
+    grid += `<line x1="${PL}" y1="${y.toFixed(1)}" x2="${W - PR}" y2="${y.toFixed(1)}" stroke="var(--line)" stroke-width="1"/>
+      <text class="tick" x="${PL - 8}" y="${(y + 4).toFixed(1)}" text-anchor="end">${fmt(maxY * (1 - g / gridN))}</text>`;
+  }
+  const step = Math.max(1, Math.ceil(n / 12));
+  let ticks = '';
+  points.forEach((p, i) => {
+    if (i % step === 0 || i === n - 1)
+      ticks += `<text class="tick" x="${xAt(i).toFixed(1)}" y="${H - PB + 16}" text-anchor="middle">${esc(p.x)}</text>`;
+  });
+  const dots = pts.map((p, i) => `<circle class="hit" data-i="${i}" cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="9" fill="transparent"/>
+    <circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3" fill="${opts.color || 'var(--petrol)'}"/>`).join('');
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(opts.label || 'اتجاه')}">
+    ${grid}
+    <path d="${area}" fill="${opts.color || 'var(--petrol)'}" opacity=".08"/>
+    <path d="${path}" fill="none" stroke="${opts.color || 'var(--petrol)'}" stroke-width="2.2"/>
+    ${dots}${ticks}</svg>`;
+  const svg = el.querySelector('svg');
+  svg.querySelectorAll('.hit').forEach(h => {
+    h.addEventListener('mousemove', e => {
+      const p = points[+h.dataset.i];
+      showTip(e, `<div class="t">${esc(p.full || p.x)}</div>${esc(opts.label || 'القيمة')} <b>${fmt(p.y)}</b>`);
+    });
+    h.addEventListener('mouseleave', hideTip);
+  });
+}
+
+/* ============================================================
+   أعمدة متراكمة — لمقارنة عدة قيم على نفس الفئة (مثال: رسمي/فعلي)
+   cats: ['يناير','فبراير']، series: [{label:'رسمي',color,values:[..]}, ...]
+   ============================================================ */
+function stackedBar(el, cats, series, opts) {
+  opts = opts || {};
+  if (!cats || !cats.length || !series || !series.length) { el.innerHTML = '<p class="note">لا توجد بيانات.</p>'; return; }
+  const W = 1160, H = 280, PT = 14, PB = 34, PL = 46, PR = 16;
+  const iw = W - PL - PR, ih = H - PT - PB;
+  const totals = cats.map((c, i) => series.reduce((s, sr) => s + (sr.values[i] || 0), 0));
+  const maxT = Math.max(...totals, 1);
+  const n = cats.length, step = iw / n, bw = Math.min(step * 0.56, 64);
+  let bars = '', ticks = '';
+  cats.forEach((c, i) => {
+    const cx = PL + step * i + step / 2;
+    let y = PT + ih;
+    series.forEach((sr, si) => {
+      const v = sr.values[i] || 0;
+      const h = (v / maxT) * ih;
+      y -= h;
+      bars += `<rect class="hit" data-i="${i}" data-s="${si}" x="${(cx - bw / 2).toFixed(1)}" y="${y.toFixed(1)}"
+        width="${bw.toFixed(1)}" height="${Math.max(h, 0).toFixed(1)}" rx="3" fill="${sr.color || PALETTE[si % PALETTE.length]}"/>`;
+    });
+    ticks += `<text class="tick" x="${cx.toFixed(1)}" y="${H - PB + 16}" text-anchor="middle">${esc(c)}</text>`;
+  });
+  const legend = series.map((sr, si) => `<div class="dl"><i style="background:${sr.color || PALETTE[si % PALETTE.length]}"></i><span>${esc(sr.label)}</span></div>`).join('');
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img">
+    <line x1="${PL}" y1="${PT + ih}" x2="${W - PR}" y2="${PT + ih}" stroke="var(--ink)" stroke-width="1.2"/>
+    ${bars}${ticks}</svg>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:6px">${legend}</div>`;
+  const svg = el.querySelector('svg');
+  svg.querySelectorAll('.hit').forEach(h => {
+    h.addEventListener('mousemove', e => {
+      const i = +h.dataset.i, si = +h.dataset.s, sr = series[si];
+      showTip(e, `<div class="t">${esc(cats[i])} — ${esc(sr.label)}</div>القيمة <b>${fmt(sr.values[i] || 0)}</b>`);
+    });
+    h.addEventListener('mouseleave', hideTip);
+  });
+}
+
+root.SonoCharts = { ribbon, hbars, donut, gauge, sparkline, line, stackedBar, PALETTE, showTip, hideTip, fmt, esc };
 })(window);
