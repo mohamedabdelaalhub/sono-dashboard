@@ -561,7 +561,7 @@ function roiCtx() {
 }
 
 function amidaCtx() {
-  return { sb: AU.client(), canWrite: true };
+  return { sb: AU.client(), canWrite: true, isSuper: RO.isSuper(AU.user()) };
 }
 
 /* تحميل الجدول المحفوظ عند فتح التطبيق */

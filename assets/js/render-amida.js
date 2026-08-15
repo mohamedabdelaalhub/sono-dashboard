@@ -73,7 +73,8 @@ async function render(el, ctx) {
   ctx = ctx || {};
   const sb = ctx.sb || null;
   const canWrite = ctx.canWrite !== false;
-  ctxRef = { sb, canWrite };
+  const isSuper = !!ctx.isSuper;
+  ctxRef = { sb, canWrite, isSuper };
 
   el.innerHTML = `<p class="note">جارٍ تحميل بيانات الأميدا…</p>`;
   let loadErr = null;
@@ -323,24 +324,232 @@ function exportXlsx(R) {
   XLSX.writeFile(wb, `توزيع-أرباح-الأميدا-${new Date().toISOString().slice(0, 10)}.xlsx`, { compression: true });
 }
 
+let archiveRows = [];
+
 async function loadArchive(el) {
   const { sb } = ctxRef;
   const box = el.querySelector('#amArchiveList');
   if (!box) return;
   try {
-    const rows = await AM().listArchive(sb);
-    if (!rows.length) { box.innerHTML = '<p class="note">لا توجد توزيعات مؤرشفة بعد.</p>'; return; }
+    archiveRows = await AM().listArchive(sb);
+    if (!archiveRows.length) { box.innerHTML = '<p class="note">لا توجد توزيعات مؤرشفة بعد.</p>'; return; }
     box.innerHTML = `<div class="tscroll"><table>
       <thead><tr><th>التاريخ</th><th>المبلغ الأساسي</th><th>النسبة السنوية</th><th>سعر الصرف</th><th>إجمالي التوزيعة</th><th>ملاحظة</th><th>بواسطة</th></tr></thead>
-      <tbody>${rows.map(r => `<tr>
+      <tbody>${archiveRows.map(r => `<tr class="arow" data-id="${esc(r.id)}" style="cursor:pointer">
         <td>${esc(new Date(r.created_at).toLocaleDateString('ar-EG'))}</td>
         <td class="n">${usd(r.principal)}</td><td class="n">${(+r.annual_rate).toFixed(2)}%</td>
         <td class="n">${r.exchange_rate ? (+r.exchange_rate).toFixed(2) : '—'}</td>
         <td class="n">${usd(r.period_total)}</td><td>${esc(r.note || '—')}</td><td>${esc(r.created_by || '—')}</td>
       </tr>`).join('')}</tbody></table></div>`;
+    box.querySelectorAll('.arow').forEach(tr => {
+      tr.addEventListener('click', () => openArchiveModal(tr.dataset.id));
+    });
   } catch (e) {
     box.innerHTML = `<p class="note" style="color:var(--clay)">${esc(e.message || String(e))}</p>`;
   }
+}
+
+/* ============================================================
+   مودال تفاصيل التوزيعة المؤرشفة — عرض + (سوبر أدمن فقط) تعديل وحذف
+   ============================================================ */
+function entryCompute(principal, rate, exRate, ded, partners) {
+  principal = +principal || 0; rate = +rate || 0; exRate = +exRate || 0; ded = +ded || 0;
+  const netRate = exRate - ded;
+  const annualTotalUsd = principal * rate / 100;
+  const periodTotalUsd = annualTotalUsd / 3;
+  const outPartners = (partners || [])
+    .filter(p => p.name && p.pct !== '' && p.pct !== null && isFinite(+p.pct))
+    .map(p => {
+      const pct = +p.pct;
+      const annualUsd = principal * pct / 100;
+      const periodUsd = annualUsd / 3;
+      const currency = p.currency === 'egp' ? 'egp' : 'usd';
+      return { name: p.name, pct, currency, annualUsd, periodUsd, periodEgpNet: periodUsd * netRate };
+    });
+  return { principal, rate, exRate, ded, netRate, annualTotalUsd, periodTotalUsd, partners: outPartners };
+}
+
+function closeArchiveModal() {
+  const m = root.document.getElementById('amArchiveModal');
+  if (m) m.remove();
+}
+
+function openArchiveModal(id) {
+  const row = archiveRows.find(r => String(r.id) === String(id));
+  if (!row) return;
+  closeArchiveModal();
+  const { isSuper } = ctxRef;
+  const m = root.document.createElement('div');
+  m.className = 'modal';
+  m.id = 'amArchiveModal';
+  m.innerHTML = archiveViewHtml(row, isSuper);
+  root.document.body.appendChild(m);
+  wireArchiveModal(row, isSuper);
+}
+
+function archiveViewHtml(row, isSuper) {
+  const R = entryCompute(row.principal, row.annual_rate, row.exchange_rate, row.deduction, row.partners);
+  return `<div class="mbox">
+    <div class="mhead"><h2>تفاصيل التوزيعة — ${esc(new Date(row.created_at).toLocaleDateString('ar-EG'))}</h2>
+      <button class="btn ghost icon" id="amModalClose" title="إغلاق">×</button></div>
+    <div class="mbody" id="amModalBody">
+      <div class="kpis">
+        <div class="kpi"><div class="lbl">المبلغ الأساسي</div><div class="val">${numS(fmt(R.principal))}<span class="unit">دولار</span></div></div>
+        <div class="kpi"><div class="lbl">النسبة السنوية</div><div class="val">${numS(R.rate.toFixed(2))}<span class="unit">%</span></div></div>
+        <div class="kpi k4"><div class="lbl">إجمالي التوزيعة (٤ أشهر)</div><div class="val">${numS(fmt(R.periodTotalUsd))}<span class="unit">دولار</span></div></div>
+      </div>
+      <div class="note">سعر الصرف: <b>${row.exchange_rate ? (+row.exchange_rate).toFixed(2) : '—'}</b> · الاستقطاع: <b>${row.deduction ? (+row.deduction).toFixed(2) : '—'}</b> · ملاحظة: ${esc(row.note || '—')} · بواسطة: ${esc(row.created_by || '—')}</div>
+      <div class="tscroll" style="margin-top:12px"><table>
+        <thead><tr><th>الشريك</th><th>نسبته</th><th>يستلم بـ</th><th>نصيبه (دولار)</th><th>الصافي بالجنيه</th></tr></thead>
+        <tbody>${R.partners.map(p => `<tr>
+          <td>${esc(p.name)}</td><td class="n">${p.pct.toFixed(2)}%</td>
+          <td>${p.currency === 'egp' ? 'جنيه مصري' : 'دولار'}</td>
+          <td class="n">${usd(p.periodUsd)}</td>
+          <td class="n">${p.currency === 'egp' ? eg(p.periodEgpNet) : '—'}</td></tr>`).join('')}
+        </tbody></table></div>
+      ${isSuper ? `<div class="frow" style="margin-top:18px">
+        <button class="btn ghost sm" id="amModalEdit" type="button">تعديل</button>
+        <button class="btn ghost sm" id="amModalDelete" type="button" style="color:var(--clay)">حذف</button>
+      </div>` : ''}
+    </div>
+  </div>`;
+}
+
+function archiveEditHtml(row) {
+  const partners = row.partners || [];
+  return `<div class="mbox">
+    <div class="mhead"><h2>تعديل التوزيعة — ${esc(new Date(row.created_at).toLocaleDateString('ar-EG'))}</h2>
+      <button class="btn ghost icon" id="amModalClose" title="إغلاق">×</button></div>
+    <div class="mbody" id="amModalBody">
+      <div class="frow">
+        <div class="fld"><label for="amEPrincipal">المبلغ الأساسي (دولار)</label>
+          <input type="number" id="amEPrincipal" value="${row.principal || ''}"></div>
+        <div class="fld narrow"><label for="amERate">النسبة السنوية %</label>
+          <input type="number" id="amERate" value="${row.annual_rate || ''}"></div>
+      </div>
+      <div class="frow">
+        <div class="fld narrow"><label for="amEEx">سعر الصرف</label>
+          <input type="number" id="amEEx" value="${row.exchange_rate || ''}"></div>
+        <div class="fld narrow"><label for="amEDed">الاستقطاع</label>
+          <input type="number" id="amEDed" value="${row.deduction || ''}"></div>
+        <div class="fld"><label for="amENote">ملاحظة</label>
+          <input type="text" id="amENote" value="${esc(row.note || '')}"></div>
+      </div>
+      <div id="amERows">${partners.map((p, i) => `<div class="frow erow" data-i="${i}">
+        <div class="fld"><label>${i === 0 ? 'اسم الشريك' : '&nbsp;'}</label>
+          <input type="text" class="eName" value="${esc(p.name || '')}"></div>
+        <div class="fld narrow"><label>${i === 0 ? 'نسبته %' : '&nbsp;'}</label>
+          <input type="number" class="ePct" value="${p.pct === '' || p.pct == null ? '' : p.pct}"></div>
+        <div class="fld narrow"><label>${i === 0 ? 'يستلم بـ' : '&nbsp;'}</label>
+          <select class="eCur">
+            <option value="usd" ${p.currency !== 'egp' ? 'selected' : ''}>دولار</option>
+            <option value="egp" ${p.currency === 'egp' ? 'selected' : ''}>جنيه مصري</option>
+          </select></div>
+        <div class="fld narrow" style="flex:0 0 auto"><label>&nbsp;</label>
+          <button class="btn ghost sm btnEDelP" type="button">حذف</button></div>
+      </div>`).join('')}</div>
+      <button class="btn ghost sm" id="btnEAddPartner" type="button">+ إضافة شريك</button>
+      <div id="amEMsg" style="margin-top:10px"></div>
+      <div class="frow" style="margin-top:14px">
+        <button class="btn sm" id="amModalSave" type="button">حفظ التعديلات</button>
+        <button class="btn ghost sm" id="amModalCancel" type="button">إلغاء</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function collectEditRows(m) {
+  return [...m.querySelectorAll('.erow')].map(r => ({
+    name: r.querySelector('.eName').value.trim(),
+    pct: r.querySelector('.ePct').value === '' ? '' : +r.querySelector('.ePct').value,
+    currency: r.querySelector('.eCur').value
+  }));
+}
+
+function wireArchiveModal(row, isSuper) {
+  const m = root.document.getElementById('amArchiveModal');
+  if (!m) return;
+  m.addEventListener('click', e => { if (e.target === m) closeArchiveModal(); });
+  const closeBtn = () => m.querySelector('#amModalClose');
+  if (closeBtn()) closeBtn().addEventListener('click', closeArchiveModal);
+
+  if (!isSuper) return;
+  const editBtn = m.querySelector('#amModalEdit');
+  if (editBtn) editBtn.addEventListener('click', () => {
+    m.querySelector('.mbox').outerHTML = archiveEditHtml(row);
+    wireEditForm(m, row);
+  });
+  const delBtn = m.querySelector('#amModalDelete');
+  if (delBtn) delBtn.addEventListener('click', async () => {
+    if (!root.confirm('متأكد إنك عايز تحذف هذه التوزيعة نهائياً؟')) return;
+    delBtn.disabled = true;
+    try {
+      await AM().deleteArchive(ctxRef.sb, row.id);
+      closeArchiveModal();
+      refreshArchiveInPlace();
+    } catch (e) {
+      root.alert(e.message || String(e));
+      delBtn.disabled = false;
+    }
+  });
+}
+
+function wireEditForm(m, row) {
+  const closeBtn = m.querySelector('#amModalClose');
+  if (closeBtn) closeBtn.addEventListener('click', closeArchiveModal);
+  const cancelBtn = m.querySelector('#amModalCancel');
+  if (cancelBtn) cancelBtn.addEventListener('click', () => openArchiveModal(row.id));
+
+  const addBtn = m.querySelector('#btnEAddPartner');
+  if (addBtn) addBtn.addEventListener('click', () => {
+    const rowsBox = m.querySelector('#amERows');
+    const i = rowsBox.querySelectorAll('.erow').length;
+    rowsBox.insertAdjacentHTML('beforeend', `<div class="frow erow" data-i="${i}">
+      <div class="fld"><input type="text" class="eName" placeholder="اسم الشريك"></div>
+      <div class="fld narrow"><input type="number" class="ePct" placeholder="نسبته"></div>
+      <div class="fld narrow"><select class="eCur"><option value="usd">دولار</option><option value="egp">جنيه مصري</option></select></div>
+      <div class="fld narrow" style="flex:0 0 auto"><button class="btn ghost sm btnEDelP" type="button">حذف</button></div>
+    </div>`);
+    wireDelButtons(m);
+  });
+  wireDelButtons(m);
+
+  const saveBtn = m.querySelector('#amModalSave');
+  if (saveBtn) saveBtn.addEventListener('click', async () => {
+    const msg = m.querySelector('#amEMsg');
+    const say = (t, ok) => { if (msg) msg.innerHTML = `<p class="note" style="color:${ok ? 'var(--moss)' : 'var(--clay)'}">${esc(t)}</p>`; };
+    const principal = +m.querySelector('#amEPrincipal').value || 0;
+    const rate = +m.querySelector('#amERate').value || 0;
+    const exRate = +m.querySelector('#amEEx').value || 0;
+    const ded = +m.querySelector('#amEDed').value || 0;
+    const note = m.querySelector('#amENote').value.trim();
+    const partners = collectEditRows(m).filter(p => p.name && p.pct !== '');
+    if (!partners.length) { say('أضف شريكاً واحداً على الأقل.', false); return; }
+    const R = entryCompute(principal, rate, exRate, ded, partners);
+    saveBtn.disabled = true;
+    try {
+      await AM().updateArchive(ctxRef.sb, row.id, {
+        principal: R.principal, annualRate: R.rate, exchangeRate: R.exRate, deduction: R.ded,
+        partners: R.partners.map(p => ({ name: p.name, pct: p.pct, currency: p.currency, annualUsd: p.annualUsd, periodUsd: p.periodUsd, periodEgpNet: p.periodEgpNet })),
+        periodTotal: R.periodTotalUsd, annualTotal: R.annualTotalUsd, note
+      });
+      closeArchiveModal();
+      refreshArchiveInPlace();
+    } catch (e) { say(e.message || String(e), false); saveBtn.disabled = false; }
+  });
+}
+
+function wireDelButtons(m) {
+  m.querySelectorAll('.btnEDelP').forEach(b => {
+    b.onclick = () => { b.closest('.erow').remove(); };
+  });
+}
+
+function refreshArchiveInPlace() {
+  const box = root.document.getElementById('amArchiveList');
+  if (!box) return;
+  const container = box.closest('.card') && box.closest('.card').parentElement;
+  if (container) loadArchive(container);
 }
 
 root.SonoRenderAmida = { render };

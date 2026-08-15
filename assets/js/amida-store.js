@@ -54,11 +54,21 @@ async function listArchive(sb) {
   if (error) throw migrationErr(error.message, 'amida_archive');
   return data || [];
 }
+async function updateArchive(sb, id, entry) {
+  if (!sb) throw new Error('يحتاج تفعيل Supabase.');
+  const { error } = await sb.from('amida_archive').update({
+    principal: entry.principal, annual_rate: entry.annualRate, partners: entry.partners,
+    period_total: entry.periodTotal, annual_total: entry.annualTotal,
+    exchange_rate: entry.exchangeRate || null, deduction: entry.deduction || null,
+    note: entry.note || null
+  }).eq('id', id);
+  if (error) throw migrationErr(error.message, 'amida_archive');
+}
 async function deleteArchive(sb, id) {
   if (!sb) throw new Error('يحتاج تفعيل Supabase.');
   const { error } = await sb.from('amida_archive').delete().eq('id', id);
   if (error) throw migrationErr(error.message, 'amida_archive');
 }
 
-root.SonoAmidaStore = { loadSettings, saveSettings, addArchive, listArchive, deleteArchive };
+root.SonoAmidaStore = { loadSettings, saveSettings, addArchive, listArchive, updateArchive, deleteArchive };
 })(window);
