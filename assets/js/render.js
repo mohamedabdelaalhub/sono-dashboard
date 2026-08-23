@@ -59,14 +59,20 @@ function insHtml(A, opts) {
         <div class="card"><h2>${esc(c.title)}</h2>
           ${c.note ? `<div class="note">${esc(c.note)}</div>` : ''}
           <div id="ins${i}_${j}"></div></div>`).join('')}</div>` : ''}
-      ${tbs.map(t => `
+      ${tbs.map((t, ti) => {
+        const errTbl = m.id === 'bookings' && /تصنيف المستخدمين/.test(t.title);
+        return `
         <div class="card"><h2>${esc(t.title)}</h2>
           ${t.note ? `<div class="note">${esc(t.note)}</div>` : ''}
-          <div class="tscroll"><table>
-            <thead><tr>${t.head.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead>
-            <tbody>${t.rows.map(r => `<tr>${r.map((c, ci) => ci
-              ? `<td class="n">${esc(String(c))}</td>` : `<td>${esc(String(c))}</td>`).join('')}</tr>`).join('')}</tbody>
-          </table></div></div>`).join('')}`;
+          <div class="tscroll"><table class="srt" data-mod="${i}" data-tbl="${ti}">
+            <thead><tr>${t.head.map((h, hi) => `<th data-sort="${hi}" title="اضغط للترتيب">${esc(h)} <span class="srtIco">⇅</span></th>`).join('')}</tr></thead>
+            <tbody>${t.rows.map(r => `<tr>${r.map((c, ci) => {
+              if (errTbl && ci === 2 && parseFloat(String(c).replace(/[^\d.-]/g, '')) > 0)
+                return `<td class="n"><a href="#" class="errLink" data-mod="${i}" data-user="${esc(String(r[0]))}">${esc(String(c))}</a></td>`;
+              return ci ? `<td class="n">${esc(String(c))}</td>` : `<td>${esc(String(c))}</td>`;
+            }).join('')}</tr>`).join('')}</tbody>
+          </table></div></div>`;
+      }).join('')}`;
   }).join('');
 }
 
@@ -83,6 +89,51 @@ function insDraw(A) {
       }));
       if (c.kind === 'donut') C.donut(el, rows, c.opts || {});
       else C.hbars(el, rows, c.opts || {});
+    });
+  });
+
+  /* ---------- ترتيب جداول الرؤى بالضغط على العنوان ---------- */
+  document.querySelectorAll('table.srt').forEach(tbl => {
+    tbl.querySelectorAll('th[data-sort]').forEach(th => {
+      th.addEventListener('click', () => {
+        const ci = +th.dataset.sort;
+        const dir = th.dataset.dir === 'asc' ? 'desc' : 'asc';
+        tbl.querySelectorAll('th[data-sort]').forEach(x => { delete x.dataset.dir; x.classList.remove('srtOn'); });
+        th.dataset.dir = dir; th.classList.add('srtOn');
+        const tbody = tbl.querySelector('tbody');
+        const rows = [...tbody.querySelectorAll('tr')];
+        rows.sort((r1, r2) => {
+          const a = r1.children[ci].textContent.trim(), b = r2.children[ci].textContent.trim();
+          const na = parseFloat(a.replace(/[^\d.-]/g, '')), nb = parseFloat(b.replace(/[^\d.-]/g, ''));
+          let cmp = (!isNaN(na) && !isNaN(nb)) ? na - nb : a.localeCompare(b, 'ar');
+          return dir === 'asc' ? cmp : -cmp;
+        });
+        rows.forEach(r => tbody.appendChild(r));
+      });
+    });
+  });
+
+  /* ---------- تفاصيل أخطاء تسجيل موظف بعينه ---------- */
+  document.querySelectorAll('a.errLink').forEach(a => {
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      const mi = +a.dataset.mod, user = a.dataset.user;
+      const mod = I.modules[mi];
+      const items = (mod && mod.userErrorDetails && mod.userErrorDetails[user]) || [];
+      let box = document.getElementById('errDetailModal');
+      if (box) box.remove();
+      box = document.createElement('div');
+      box.className = 'modal'; box.id = 'errDetailModal';
+      box.innerHTML = `<div class="mbox">
+        <div class="mhead"><h2>أخطاء تسجيل — ${esc(user)}</h2>
+          <button class="btn ghost icon" id="errDetailClose" title="إغلاق">×</button></div>
+        <div class="mbody"><div class="tscroll"><table>
+          <thead><tr><th>المريض</th><th>الطبيب</th><th>نوع الخطأ</th></tr></thead>
+          <tbody>${items.map(it => `<tr><td>${esc(it.patient)}</td><td>${esc(it.doctor)}</td><td>${esc(it.reason)}</td></tr>`).join('')}</tbody>
+        </table></div></div></div>`;
+      document.body.appendChild(box);
+      box.addEventListener('click', ev => { if (ev.target === box) box.remove(); });
+      document.getElementById('errDetailClose').addEventListener('click', () => box.remove());
     });
   });
 }

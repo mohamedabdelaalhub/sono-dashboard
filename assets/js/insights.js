@@ -266,6 +266,9 @@ A.bookings = function (rows) {
   const userStats = [...byUser.values()].sort((a, b) => b.errors - a.errors);
   const totalErrors = errItems.length;
   const errRate = n ? totalErrors / n : 0;
+  const errByUser = {};
+  errItems.forEach(e => { (errByUser[e.user] = errByUser[e.user] || []).push(e); });
+  M.userErrorDetails = errByUser;
 
   M.kpis.push(kpi('أخطاء التسجيل المكتشفة', fmt(totalErrors), 'خطأ',
     n ? `${pc(errRate)} من إجمالي الحجوزات` : '', errRate > .05 ? 'k5' : 'k3'));
