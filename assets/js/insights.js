@@ -96,8 +96,8 @@ A.bookings = function (rows) {
     const t = S(s);
     if (/الغ|إلغ|ملغ/.test(t)) return 'ملغي';
     if (/عدم الرد|لم يرد|مغلق/.test(t)) return 'عدم الرد';
-    if (/لم يحضر|غياب/.test(t)) return 'لم يحضر';
-    if (/تم|كشف|حضر|انته|مغادر/.test(t)) return 'تم';
+    if (/عدم حضور|لم يحضر|غياب/.test(t)) return 'لم يحضر';
+    if (/تم|كشف|حضور|حضر|انته|مغادر/.test(t)) return 'تم';
     return 'منتظر';
   };
   const c = { 'تم': 0, 'ملغي': 0, 'عدم الرد': 0, 'لم يحضر': 0, 'منتظر': 0 };
@@ -203,6 +203,98 @@ A.bookings = function (rows) {
       kpi: 'نسبة عدم الرد', tgt: '≤ 10%', pr: 2, risk: 'أرقام هواتف المرضى غير محدَّثة',
       why: `${pc(c['عدم الرد'] / n)} من الحجوزات لا يُرد عليها.` }));
   }
+  /* ---------- تصنيف المستخدمين وأخطاء التسجيل ---------- */
+  const BAD_NAME_RE = /\.|\s{2,}|[^ء-ي\sA-Za-z']/;
+  function nameIssue(name) {
+    const t = S(name);
+    if (!t) return null;
+    if (BAD_NAME_RE.test(t)) return 'رموز أو نقاط أو مسافات زائدة في الاسم';
+    return null;
+  }
+  /* الأغلبية: تخصص الخدمة الشائع — نعلّم الأقلية فقط لو الأغلبية طاغية (٨٥٪+) وحجم كافٍ */
+  const svcSpecMap = new Map();
+  rows.forEach(r => {
+    const svc = S(r.service); if (!svc) return;
+    const m = svcSpecMap.get(svc) || new Map();
+    const sp = S(r.specialty) || 'غير محدّد';
+    m.set(sp, (m.get(sp) || 0) + 1);
+    svcSpecMap.set(svc, m);
+  });
+  const svcDominant = new Map();
+  svcSpecMap.forEach((m, svc) => {
+    const total = [...m.values()].reduce((a, b) => a + b, 0);
+    const top = [...m.entries()].sort((a, b) => b[1] - a[1])[0];
+    if (total >= 10 && top[1] / total >= .85) svcDominant.set(svc, top[0]);
+  });
+  /* تكرار نفس الطبيب لنفس تاريخ ووقت الحجز المسجَّل (تقريبي — العمود المتاح هو تاريخ الحجز لا تاريخ الموعد نفسه) */
+  const slotMap = new Map();
+  rows.forEach((r, i) => {
+    const t = S(r.time);
+    if (!t || t === '12:00 ص') return; /* قيمة افتراضية غير حقيقية في أغلب الصفوف */
+    const key = S(r.doctor) + '|' + S(r.date) + '|' + t;
+    const arr = slotMap.get(key) || [];
+    arr.push(i);
+    slotMap.set(key, arr);
+  });
+  const dupSlotRows = new Set();
+  slotMap.forEach(arr => {
+    if (arr.length < 2) return;
+    const pats = new Set(arr.map(i => S(rows[i].patient)));
+    if (pats.size > 1) arr.forEach(i => dupSlotRows.add(i));
+  });
+
+  const errItems = [];
+  const byUser = new Map();
+  rows.forEach((r, i) => {
+    const u = S(r.user) || 'غير محدّد';
+    const uo = byUser.get(u) || { k: u, n: 0, errors: 0 };
+    uo.n++;
+    const reasons = [];
+    const ni = nameIssue(r.patient);
+    if (ni) reasons.push(ni);
+    if (!S(r.patient)) reasons.push('اسم المريض فارغ');
+    if (!S(r.phone)) reasons.push('رقم التليفون فارغ');
+    const svc = S(r.service), dom = svcDominant.get(svc);
+    if (dom && S(r.specialty) !== dom) reasons.push(`الخدمة «${svc}» عادة تحت تخصص «${dom}» لا «${S(r.specialty) || '—'}»`);
+    if (dupSlotRows.has(i)) reasons.push('نفس الطبيب ونفس تاريخ ووقت الحجز المسجَّل لأكثر من مريض');
+    if (reasons.length) {
+      uo.errors++;
+      errItems.push({ user: u, patient: S(r.patient) || '—', doctor: S(r.doctor) || '—', reason: reasons.join(' · ') });
+    }
+    byUser.set(u, uo);
+  });
+  const userStats = [...byUser.values()].sort((a, b) => b.errors - a.errors);
+  const totalErrors = errItems.length;
+  const errRate = n ? totalErrors / n : 0;
+
+  M.kpis.push(kpi('أخطاء التسجيل المكتشفة', fmt(totalErrors), 'خطأ',
+    n ? `${pc(errRate)} من إجمالي الحجوزات` : '', errRate > .05 ? 'k5' : 'k3'));
+  M.tables.push(tbl('تصنيف المستخدمين وأخطاء التسجيل', 'عدد الحجوزات وعدد الأخطاء المرصودة لكل موظف تسجيل',
+    ['المستخدم', 'الحجوزات', 'الأخطاء', 'نسبة الخطأ'],
+    userStats.map(u => [u.k, fmt(u.n), fmt(u.errors), pc(u.n ? u.errors / u.n : 0)])));
+  if (errItems.length) {
+    M.tables.push(tbl('تفاصيل أخطاء التسجيل', `أول ${Math.min(30, errItems.length)} حالة من ${fmt(errItems.length)} — اسم/تليفون فارغ، رموز في الاسم، تعارض مواعيد، أو خدمة تحت تخصص غير معتاد`,
+      ['المستخدم', 'المريض', 'الطبيب', 'نوع الخطأ'],
+      errItems.slice(0, 30).map(e => [e.user, e.patient, e.doctor, e.reason])));
+  }
+  if (errRate > .03) {
+    const sev = errRate > .1 ? 'high' : 'medium';
+    M.risks.push(risk({ id: 'bookRegErr', area: 'الحوكمة', sev,
+      title: 'أخطاء تسجيل متكررة في بيانات الحجز',
+      finding: `${fmt(totalErrors)} حجزاً من ${fmt(n)} (${pc(errRate)}) فيه خطأ تسجيل — أعلاها عند «${userStats[0] ? userStats[0].k : '—'}» بـ${userStats[0] ? fmt(userStats[0].errors) : '—'} حالة.`,
+      metric: 'نسبة أخطاء التسجيل', value: pc(errRate), target: '≤ 3%' }));
+    M.recos.push(reco({ id: 'bookRegErr', area: 'الحوكمة', sev,
+      title: 'تدريب سريع على تعبئة بيانات الحجز', risk: 'أخطاء تسجيل متكررة في بيانات الحجز',
+      steps: ['مراجعة أعلى موظف في نسبة الخطأ ومعرفة السبب (سرعة، تدريب، أم واجهة مربكة).',
+              'إلزام حقل اسم المريض ورقم التليفون قبل حفظ أي حجز.',
+              'تنبيه فوري لو الخدمة المختارة غير معتادة لهذا التخصص.'] }));
+    M.plan.push(task({ id: 'bookRegErr', area: 'الحوكمة', sev, pr: 2,
+      t: 'مراجعة أخطاء تسجيل الحجز مع الموظفين الأعلى نسبة',
+      own: 'مدير التشغيل', wk: '١–٢', kpi: 'نسبة أخطاء التسجيل', tgt: '≤ 3%',
+      risk: 'أخطاء تسجيل متكررة في بيانات الحجز',
+      why: `${pc(errRate)} من الحجوزات فيها خطأ تسجيل يعطّل التواصل مع المريض أو يشوّه تقارير التخصص.` }));
+  }
+
   if (n && online / n < .15) {
     M.risks.push(risk({ id: 'lowOnline', area: 'التسويق', sev: 'low',
       title: 'الحجز الأونلاين ضعيف الاستخدام',
@@ -212,6 +304,93 @@ A.bookings = function (rows) {
       title: 'دفع المرضى نحو الحجز الأونلاين', risk: 'الحجز الأونلاين ضعيف الاستخدام',
       steps: ['رابط حجز مباشر في كل رسالة ومنشور.', 'كود QR على مكتب الاستقبال وفي غرف الانتظار.',
               'حافز بسيط: أولوية دور أو خصم رمزي على الحجز الأونلاين.'] }));
+  }
+  return M;
+};
+
+/* ---------- متابعة الخزينة ---------- */
+function payMethodNames(v) {
+  /* الخلية غالباً "نقدي:150.00,فيزا:50.00," — نستخرج أسماء الطرق فقط */
+  const t = S(v);
+  if (!t) return ['غير محدّد'];
+  const names = t.split(',').map(p => p.split(':')[0].trim()).filter(Boolean);
+  return names.length ? names : ['غير محدّد'];
+}
+A.treasuryFollowup = function (rows) {
+  const n = rows.length;
+  /* الفرق يُحسب دائماً كـ(قيمة الخدمة − المسدد) — عمود "الفرق" الخام في الملف قد يمثّل
+     فرق صرف/تسوية لحظية وليس بالضرورة نفس المعنى، فمجموعه قد لا يطابق إجمالي الفجوة الفعلية */
+  const svcTotal = sum(rows, r => r.svcValue);
+  const paidTotal = sum(rows, r => r.paid);
+  const diffTotal = svcTotal - paidTotal;
+  const rDiff = svcTotal ? diffTotal / svcTotal : 0;
+
+  const byUser = new Map();
+  rows.forEach(r => {
+    const u = S(r.user) || 'غير محدّد';
+    const o = byUser.get(u) || { k: u, n: 0, svc: 0, paid: 0, diff: 0 };
+    o.n++; o.svc += N(r.svcValue); o.paid += N(r.paid);
+    o.diff = o.svc - o.paid;
+    byUser.set(u, o);
+  });
+  const userStats = [...byUser.values()].sort((a, b) => b.diff - a.diff);
+  const methodMap = new Map();
+  rows.forEach(r => {
+    payMethodNames(r.payMethod).forEach(m => {
+      const o = methodMap.get(m) || { k: m, n: 0, v: 0 };
+      o.n++; o.v += N(r.paid); methodMap.set(m, o);
+    });
+  });
+  const methods = [...methodMap.values()].sort((a, b) => b.v - a.v);
+  const specs = grp(rows, 'specialty', 'svcValue');
+  const bigDiff = rows.map((r, i) => ({ i, r, d: N(r.svcValue) - N(r.paid) }))
+    .filter(x => x.d > 0).sort((a, b) => b.d - a.d);
+
+  const M = {
+    headline: `${cnt(n, 'بند خدمة واحد', 'بندا خدمة', 'بند خدمة', 'بند خدمة')} بقيمة ${cur(svcTotal)}، ` +
+              `المسدد فعلياً ${cur(paidTotal)}${diffTotal > 0 ? ` وفرق غير محصَّل ${cur(diffTotal)} (${pc(rDiff)})` : ' بلا فرق يُذكر'}.`,
+    kpis: [
+      kpi('إجمالي قيمة الخدمات', cur(svcTotal), '', `${fmt(n)} بند`),
+      kpi('إجمالي المسدد فعلياً', cur(paidTotal), '', pc(svcTotal ? paidTotal / svcTotal : 0) + ' من القيمة', 'k4'),
+      kpi('الفرق غير المحصَّل', cur(diffTotal), '', pc(rDiff), rDiff > .05 ? 'k5' : 'k3'),
+      kpi('عدد الكاشيرز', fmt(byUser.size), 'موظف', ''),
+      kpi('طرق السداد', fmt(methods.length), 'طريقة', methods[0] ? `الأعلى: ${methods[0].k}` : '')
+    ],
+    charts: [
+      cht('donut', 'التحصيل حسب طريقة السداد', 'حصة كل طريقة من إجمالي المسدد',
+          methods.map(m => ({ label: m.k, value: m.v }))),
+      cht('hbars', 'أعلى عشرة تخصصات بقيمة الخدمة', '', specs.slice(0, 10).map(s => ({ label: s.k, value: s.v })), { suffix: ' جنيه' })
+    ],
+    tables: [
+      tbl('أداء الكاشيرز', 'مرتّب بأعلى فرق غير محصَّل — قيمة الخدمة مقابل المسدد فعلياً',
+          ['الموظف', 'عدد البنود', 'قيمة الخدمات', 'المسدد', 'الفرق'],
+          userStats.slice(0, 15).map(u => [u.k, fmt(u.n), cur(u.svc), cur(u.paid), cur(u.diff)])),
+      tbl('أعلى الفروق غير المحصَّلة', `أول ${Math.min(20, bigDiff.length)} بند`,
+          ['الموظف', 'الطبيب', 'الخدمة', 'قيمة الخدمة', 'المسدد', 'الفرق'],
+          bigDiff.slice(0, 20).map(x => [S(x.r.user), S(x.r.doctor) || '—', S(x.r.service) || '—', cur(x.r.svcValue), cur(x.r.paid), cur(x.d)]))
+    ],
+    blocks: [blk('التحصيل اليومي بالخزينة',
+      `${fmt(n)} بند خدمة بقيمة إجمالية ${cur(svcTotal)}، حُصِّل منها فعلياً ${cur(paidTotal)}. ` +
+      `الفرق غير المحصَّل ${cur(diffTotal)} (${pc(rDiff)})، وأعلى الكاشيرز في الفرق «${userStats[0] ? userStats[0].k : '—'}».`)],
+    risks: [], recos: [], plan: []
+  };
+
+  if (rDiff > .03 && diffTotal > 0) {
+    const sev = rDiff > .1 ? 'high' : 'medium';
+    M.risks.push(risk({ id: 'treasuryDiff', area: 'الخزينة', sev,
+      title: 'فروق تحصيل غير موثّقة بين قيمة الخدمة والمسدد',
+      finding: `${cur(diffTotal)} (${pc(rDiff)}) فرق بين قيمة الخدمات والمسدد فعلياً. أعلى الكاشيرز «${userStats[0] ? userStats[0].k : '—'}» بفرق ${userStats[0] ? cur(userStats[0].diff) : '—'}.`,
+      metric: 'نسبة الفرق من قيمة الخدمات', value: pc(rDiff), target: '≤ 3%' }));
+    M.recos.push(reco({ id: 'treasuryDiff', area: 'الخزينة', sev,
+      title: 'تسوية يومية لفروق الخزينة', risk: 'فروق تحصيل غير موثّقة بين قيمة الخدمة والمسدد',
+      steps: ['تسوية آخر الوردية: مطابقة قيمة الخدمة بالمسدد لكل كاشير قبل الإغلاق.',
+              'أي فرق يُوثَّق بسبب واضح (تقسيط، تأجيل، خصم) وقت حدوثه لا بعده.',
+              'مراجعة أسبوعية لأعلى ثلاثة كاشيرز في الفرق مع المدير المالي.'] }));
+    M.plan.push(task({ id: 'treasuryDiff', area: 'الخزينة', sev, pr: 1,
+      t: 'تفعيل تسوية يومية إلزامية للفرق بين قيمة الخدمة والمسدد',
+      own: 'المدير المالي', wk: '١', kpi: 'نسبة الفرق', tgt: '≤ 3%',
+      risk: 'فروق تحصيل غير موثّقة بين قيمة الخدمة والمسدد',
+      why: `${cur(diffTotal)} فرق غير موثّق قد يكون تحصيلاً ناقصاً أو خطأ تسجيل.` }));
   }
   return M;
 };
