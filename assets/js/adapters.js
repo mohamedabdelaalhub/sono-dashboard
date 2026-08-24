@@ -26,6 +26,11 @@ function payMethod(v) {
   return m || 'غير محدد';
 }
 
+/* بند مصروف ثابت أم متغيّر حسب اسم البند نفسه */
+function expGroup(cat) {
+  return /مرتب|رواتب|اجور|ايجار|ضريب|رسوم|دمغه|تراخيص|تامين/.test(cat) ? 'ثابت' : 'متغيّر';
+}
+
 /* سطر إيراد قياسي */
 function inc(o) {
   return {
@@ -217,6 +222,25 @@ const AD = {
       }));
     });
     return { income, expense: [] };
+  },
+
+  /* ---------- سندات المصروفات: كل سند ببنده الرئيسي كما هو ---------- */
+  expenseVouchers(ds) {
+    const fb = fallbackDate(ds), expense = [];
+    ds.rows.forEach(r => {
+      const amt = num(r.amount);
+      if (!amt) return;
+      const cat = clean(r.mainAccount) || 'غير مصنّف';
+      const isDoc = /اتعاب/.test(cat);
+      expense.push(exp({
+        date: r.date || fb, amount: amt,
+        bayan: clean(r.account) || clean(r.note) || cat,
+        note: clean(r.note), cat, group: expGroup(cat),
+        doctor: isDoc ? (clean(r.account) || null) : null,
+        voucher: r.receipt, src: ds.file
+      }));
+    });
+    return { income: [], expense };
   },
 
   /* ---------- بيان الحالة المجمع ---------- */
