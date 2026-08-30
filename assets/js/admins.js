@@ -313,7 +313,29 @@ async function renderTabAccess() {
           </tr>`;
         }).join('')}
       </tbody>
-    </table></div>` : '<p class="note">لا يوجد مستخدمون غير السوبر أدمن بعد.</p>'}`;
+    </table></div>
+    <div style="margin-top:12px"><button class="btn" id="taSaveAll">حفظ كل التابات</button></div>` :
+    '<p class="note">لا يوجد مستخدمون غير السوبر أدمن بعد.</p>'}`;
+
+  const saveAllBtn = $('taSaveAll');
+  if (saveAllBtn) {
+    saveAllBtn.onclick = async () => {
+      const trs = [...el.querySelectorAll('tr[data-k]')];
+      const empty = trs.find(tr => ![...tr.querySelectorAll('.taChk')].some(c => c.checked));
+      if (empty) { msg('taMsg', 'err', 'المفروض يفضل تاب واحد على الأقل مؤشّر لكل مستخدم.'); return; }
+      saveAllBtn.disabled = true; saveAllBtn.textContent = 'جارٍ الحفظ…';
+      let ok = 0, fail = [];
+      for (const tr of trs) {
+        const key = tr.dataset.k, email = tr.dataset.email;
+        const checked = [...tr.querySelectorAll('.taChk')].filter(c => c.checked).map(c => c.dataset.tab);
+        try { await TA.save(sb, key, checked, email); ok++; }
+        catch (e) { fail.push((tr.children[0].textContent || email) + ': ' + e.message); }
+      }
+      saveAllBtn.disabled = false; saveAllBtn.textContent = 'حفظ كل التابات';
+      if (fail.length) msg('taMsg', 'err', `تم حفظ ${ok} وفشل: ` + fail.join('، '));
+      else msg('taMsg', 'ok', `تم حفظ تابات ${ok} مستخدم.`);
+    };
+  }
 
   el.querySelectorAll('tr[data-k]').forEach(tr => {
     const btn = tr.querySelector('.taSave');
