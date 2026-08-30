@@ -38,7 +38,8 @@ async function myTabs(sb, user, isSuper) {
     return Array.isArray(t) && t.length ? t : null;
   }
   try {
-    const { data, error } = await sb.from('tab_access').select('tabs').maybeSingle();
+    const { data, error } = await sb.from('tab_access').select('tabs')
+      .eq('admin_id', user.id).maybeSingle();
     if (error || !data || !Array.isArray(data.tabs) || !data.tabs.length) return null;
     return data.tabs;
   } catch (e) { return null; }

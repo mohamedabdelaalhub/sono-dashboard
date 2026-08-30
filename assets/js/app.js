@@ -165,6 +165,11 @@ async function enterApp() {
       ? await root.SonoTabAccess.myTabs(AU.client(), u, RO.isSuper(u))
       : null;
   } catch (e) { state.tabAccess = null; }
+  if (root.SonoUsageLog) {
+    root.SonoUsageLog.start(AU.client(), u).then(id => {
+      if (id) setInterval(() => root.SonoUsageLog.touch(AU.client()), 60000);
+    });
+  }
 
   $('who').textContent = u.name;
   $('uav').textContent = (u.name || '؟').trim().charAt(0);
@@ -378,6 +383,7 @@ async function handleFiles(list) {
         '   تأكد أن أسماء الأعمدة في صف واحد وبلا صفوف فارغة بينها،\n' +
         '   وأن الملف مُصدَّر من نظام المركز بلا تعديل يدوي على الترويسة.');
     }
+    if (root.SonoUsageLog) root.SonoUsageLog.addFiles(AU.client(), arr.map(f => f.name));
     rebuild();
     if (warnings.length) alert('ملاحظات القراءة:\n\n' + warnings.join('\n'));
   } catch (e) {

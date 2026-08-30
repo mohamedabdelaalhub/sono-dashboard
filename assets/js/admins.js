@@ -235,6 +235,44 @@ async function fillUsers() {
    واجهة التحكم في التابات — أي مستخدم يشوف أي تاب
    منفصلة تماماً عن جدول المستخدمين أعلاه، لتفادي أي تعديل عليه.
    ============================================================ */
+/* ============================================================
+   واجهة سجل الاستخدام — من دخل، امتى، أي تقارير رفع، ومدة الاستخدام
+   ============================================================ */
+function fmtDateTime(d) {
+  try { return new Date(d).toLocaleString('ar-EG', { hour12: true }); } catch (e) { return String(d); }
+}
+function fmtDuration(a, b) {
+  const m = Math.max(0, Math.round((new Date(b) - new Date(a)) / 60000));
+  if (m < 1) return 'أقل من دقيقة';
+  if (m < 60) return m + ' دقيقة';
+  return Math.floor(m / 60) + ' س ' + (m % 60) + ' د';
+}
+async function renderUsageLog() {
+  const el = $('con-usage');
+  const UL = root.SonoUsageLog;
+  const sb = AU().client();
+  if (!UL || !sb) {
+    el.innerHTML = '<h3>سجل الاستخدام</h3><p class="note">متاح فقط مع تفعيل Supabase.</p>';
+    return;
+  }
+  el.innerHTML = '<h3>سجل الاستخدام</h3><div class="note">جارٍ التحميل…</div>';
+  let rows;
+  try { rows = await UL.listAll(sb); } catch (e) { el.innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+
+  el.innerHTML = `
+    <h3>سجل الاستخدام</h3>
+    <div class="note">آخر ${rows.length} جلسة دخول. المدة تقريبية — تُحدَّث كل دقيقة أثناء استخدام اللوحة فعلياً.</div>
+    ${rows.length ? `<div class="tscroll"><table class="utable">
+      <thead><tr><th>المستخدم</th><th>بداية الدخول</th><th>مدة الاستخدام</th><th>التقارير المرفوعة</th></tr></thead>
+      <tbody>${rows.map(r => `<tr>
+        <td>${esc(r.name || r.email || '—')}</td>
+        <td>${esc(fmtDateTime(r.started_at))}</td>
+        <td>${esc(fmtDuration(r.started_at, r.ended_at))}</td>
+        <td>${(r.reports && r.reports.length) ? esc(r.reports.join('، ')) : '—'}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>` : '<p class="note">لا يوجد سجل بعد.</p>'}`;
+}
+
 async function renderTabAccess() {
   const el = $('con-tabs');
   const TA = root.SonoTabAccess;
@@ -433,10 +471,12 @@ function showTab(t) {
     b.setAttribute('aria-selected', b.dataset.c === t ? 'true' : 'false'));
   $('con-users').classList.toggle('hide', t !== 'users');
   $('con-tabs').classList.toggle('hide', t !== 'tabs');
+  $('con-usage').classList.toggle('hide', t !== 'usage');
   $('con-ai').classList.toggle('hide', t !== 'ai');
   $('con-diag').classList.toggle('hide', t !== 'diag');
   if (t === 'users') renderUsers();
   else if (t === 'tabs') renderTabAccess();
+  else if (t === 'usage') renderUsageLog();
   else if (t === 'ai') renderAi();
   else renderDiag();
 }
