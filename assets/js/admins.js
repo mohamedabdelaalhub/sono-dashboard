@@ -304,7 +304,9 @@ async function renderTabAccess() {
       <tbody>
         ${rows.map(u => {
           const cfg = local ? saved[u.email] : saved[u.key];
-          const allowed = Array.isArray(cfg) && cfg.length ? cfg : TABS.map(t => t.key);
+          /* بلا حفظ سابق: كل التابات إلا الحسّاسة — تلك تبقى مخفية حتى تُمنح صراحةً */
+          const allowed = Array.isArray(cfg) && cfg.length
+            ? cfg : TABS.filter(t => !t.sensitive).map(t => t.key);
           return `<tr data-k="${esc(u.key)}" data-email="${esc(u.email)}">
             <td>${esc(u.name || u.email)}<div style="font-size:11px;color:var(--muted)">${esc(u.role)}</div></td>
             ${TABS.map(t => `<td style="text-align:center">
