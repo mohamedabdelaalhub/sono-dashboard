@@ -195,6 +195,8 @@ nav.tabs button[aria-selected="true"]{background:var(--petrol);color:#fff}
 nav.tabs button .cnt{display:inline-block;background:rgba(255,255,255,.22);border-radius:10px;
   padding:0 6px;font-size:11px;margin-right:5px;font-family:var(--f-num);font-variant-numeric:tabular-nums}
 nav.tabs button[aria-selected="false"] .cnt{background:var(--paper);color:var(--muted)}
+nav.tabs button .cnt.alert{background:#D0402A;color:#fff}
+nav.tabs button[aria-selected="false"] .cnt.alert{background:#D0402A;color:#fff}
 
 /* ---------- البطاقات ---------- */
 .card{background:var(--surface);border-radius:var(--r);padding:20px 22px 18px;box-shadow:var(--shadow);margin-bottom:20px}

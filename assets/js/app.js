@@ -184,6 +184,31 @@ async function enterApp() {
   applyPerms();
   loadSavedSchedule();
   if (isAmidaInvestor()) renderTab('amida');
+  if (RO.can(u, 'upload')) renderQuickView();
+}
+
+/* ---------- نظرة سريعة من آخر تحليل محفوظ في الأرشيف — تظهر قبل رفع أي ملف ---------- */
+async function renderQuickView() {
+  const el = $('welcomeQuick');
+  if (!el || !root.SonoArchive || AU.mode() !== 'supabase') return;
+  el.innerHTML = '';
+  let rows;
+  try { rows = await root.SonoArchive.list(); } catch (e) { return; }
+  if (!rows || !rows.length) return;
+  const r = rows[0];
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const money = n => Math.round(n || 0).toLocaleString('en-US') + ' جنيه';
+  const when = r.created_at ? new Date(r.created_at).toLocaleDateString('ar-EG') : '';
+  el.innerHTML = `
+    <div style="margin-top:16px;padding:12px 18px;border:1px solid #ddd;border-radius:10px;display:inline-block;text-align:center">
+      <div style="font-weight:600;margin-bottom:8px">آخر تحليل محفوظ — ${esc(r.title || '')} ${when ? '(' + esc(when) + ')' : ''}</div>
+      <div style="display:flex;gap:20px;flex-wrap:wrap;justify-content:center">
+        <span>الإيراد: <b>${money(r.revenue)}</b></span>
+        <span>الصافي: <b>${money(r.net)}</b></span>
+        <span>المخاطر: <b>${r.risk_count || 0}</b></span>
+      </div>
+    </div>`;
 }
 
 function applyPerms() {
@@ -262,6 +287,12 @@ function clearAll() {
   $('welcome').classList.remove('hide');
   markTabs('sum'); state.tab = 'sum';
   ['btnXlsx', 'btnPdf', 'btnPrint'].forEach(b => $(b).disabled = true);
+}
+
+/* شارة حمراء على تاب «المخاطر» لو فيه خطر عالي الخطورة — بدل ما ينتظر أحد يفتح التاب */
+function setRiskBadge(count, hasHigh) {
+  $('cRisk').textContent = count;
+  $('cRisk').classList.toggle('alert', !!hasHigh);
 }
 
 async function handleFiles(list) {
@@ -512,7 +543,7 @@ function applyPeriod() {
       $('cmpLbl').textContent = s.prevLabel ? 'مقابل ' + s.prevLabel
         : (s.prev ? 'مقابل الفترة السابقة' : 'لا توجد فترة سابقة للمقارنة');
       state.A.dupWarn = state.dupWarn;
-      $('cRisk').textContent = state.E.risks.length;
+      setRiskBadge(state.E.risks.length, state.E.risks.some(r => r.sev === 'high' || r.sev === 'critical'));
       $('cRec').textContent  = state.E.recos.length;
       $('cPlan').textContent = state.E.plan.length;
       const u = AU.user();
@@ -641,7 +672,7 @@ function rebuild() {
    التابات
    ============================================================ */
 const PANES = { sum: 'pane-sum', kpi: 'pane-kpi', risk: 'pane-risk', rec: 'pane-rec',
-                plan: 'pane-plan', dist: 'pane-dist', roi: 'pane-roi', amida: 'pane-amida',
+                plan: 'pane-plan', team: 'pane-team', dist: 'pane-dist', roi: 'pane-roi', amida: 'pane-amida',
                 ai: 'pane-ai', sch: 'pane-sch', rep: 'pane-rep',
                 cmp: 'pane-cmp', arch: 'pane-arch', data: 'pane-data' };
 const RENDERED = {};
@@ -715,7 +746,8 @@ function showComparison(C, sources, title) {
   $('toolbar').classList.add('hide');
   $('tabs').classList.remove('hide');
   $('cmpLbl').textContent = nm;
-  $('cRisk').textContent = C.risks.filter(r => r.persistent || r.emerged).length;
+  const cmpActive = C.risks.filter(r => r.persistent || r.emerged);
+  setRiskBadge(cmpActive.length, cmpActive.some(r => /عال/.test(r.sev || '')));
   $('cRec').textContent = '—'; $('cPlan').textContent = '—';
   $('btnXlsx').disabled = true;
   ['btnPdf', 'btnPrint'].forEach(b => $(b).disabled = !RO.can(AU.user(), 'export'));
@@ -793,7 +825,7 @@ function archiveHandlers() {
         state.C = null; state.cSources = null;
         state.A = r.A; state.E = r.E; state.cmp = r.cmp;
         state.archived = r.title;
-        $('cRisk').textContent = r.E.risks.length;
+        setRiskBadge(r.E.risks.length, r.E.risks.some(x => x.sev === 'high' || x.sev === 'critical'));
         $('cRec').textContent  = r.E.recos.length;
         $('cPlan').textContent = r.E.plan.length;
         $('cmpLbl').textContent = 'تقرير محفوظ: ' + r.title;
@@ -816,6 +848,7 @@ function draw(t, el) {
     risk: () => RD.renderRisks(el, state.A, state.E),
     rec : () => RD.renderRecos(el, state.A, state.E),
     plan: () => RD.renderPlan(el, state.A, state.E, state.ctx),
+    team: () => RD.renderTeam(el, state),
     dist : () => root.SonoRenderDist.render(el, state.A),
     roi  : () => root.SonoRenderRoi.render(el, roiCtx()),
     amida: () => root.SonoRenderAmida.render(el, amidaCtx()),

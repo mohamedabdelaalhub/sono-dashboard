@@ -1062,6 +1062,65 @@ async function renderArchive(el, state, handlers) {
   await fill();
 }
 
+/* ============================================================
+   تاب «أداء الفريق» — يجمع الثلاثة أماكن اللي كان المدير
+   بيتنقّل بينها: أتعاب الأطباء، مقارنة الأطباء بين الفترات،
+   وأداء الكاشيرز — في مكان واحد، بلا تكرار حساب أي رقم.
+   ============================================================ */
+function renderTeam(el, state) {
+  const A = state.A, C = state.C, ins = state.ins;
+  let html = '';
+
+  /* ١) أتعاب الأطباء — الفترة الحالية */
+  if (A && A.doctors && A.doctors.length) {
+    html += `<div class="card">
+      <h2>أداء الأطباء — الأتعاب المصروفة (الفترة الحالية)</h2>
+      <div class="note">مصدرها بند «أتعاب د/…» في جانب المنصرف.</div>
+      <div class="tscroll"><table>
+        <thead><tr><th>الطبيب</th><th>التخصص</th><th>الأتعاب</th><th>عدد الدفعات</th><th>متوسط الدفعة</th><th style="width:22%">الحصة</th></tr></thead>
+        <tbody>${A.doctors.map(d => `
+          <tr><td>د/ ${esc(d.doctor)}</td>
+            <td>${esc(specFor(d.doctor) || '—')}</td>
+            <td class="n">${fmt(d.fees)}</td><td class="n">${d.payouts}</td><td class="n">${fmt(d.avg)}</td>
+            <td><div class="track" style="height:14px"><div class="fill" style="width:${(d.share / (A.doctors[0].share || 1) * 100).toFixed(1)}%"></div></div>
+                <span class="num" style="font-size:11px;color:var(--muted)">${pc(d.share)}</span></td></tr>`).join('')}
+        </tbody></table></div></div>`;
+  } else {
+    html += `<div class="card"><h2>أداء الأطباء — الأتعاب</h2><div class="note">لا توجد بيانات أتعاب أطباء في الملفات المرفوعة حالياً.</div></div>`;
+  }
+
+  /* ٢) مقارنة الأطباء بين فترتين */
+  if (C && C.doctors && C.doctors.length) {
+    html += `<div class="card">
+      <h2>مقارنة الأطباء بين الفترات</h2>
+      <div class="tscroll" style="max-height:400px;overflow-y:auto"><table>
+        <thead><tr><th>الطبيب</th>${C.periods.map(p => `<th>${esc(p.label)}</th>`).join('')}
+          <th>الفرق</th><th>ظهر في</th></tr></thead>
+        <tbody>${C.doctors.map(d => `<tr>
+          <td>د/ ${esc(d.name)}</td>
+          ${d.vals.map(v => `<td class="n">${v ? fmt(v) : '—'}</td>`).join('')}
+          <td class="n">${d.diff >= 0 ? '+' : ''}${fmt(d.diff)}</td>
+          <td class="n">${d.periods}/${C.n}</td></tr>`).join('')}</tbody>
+      </table></div></div>`;
+  } else {
+    html += `<div class="card"><h2>مقارنة الأطباء بين الفترات</h2><div class="note">شغّل مقارنة فترتين من تاب «الأرشيف» ثم ارجع هنا.</div></div>`;
+  }
+
+  /* ٣) أداء الكاشيرز — من تقرير «متابعة الخزينة» لو مرفوع */
+  const tf = ins && ins.modules ? ins.modules.find(m => m.id === 'treasuryFollowup') : null;
+  const ct = tf ? (tf.tables || []).find(t => t.title === 'أداء الكاشيرز') : null;
+  if (ct) {
+    html += `<div class="card"><h2>أداء الكاشيرز</h2>
+      ${ct.note ? `<div class="note">${esc(ct.note)}</div>` : ''}
+      <div class="tscroll"><table><thead><tr>${ct.head.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead>
+      <tbody>${ct.rows.map(r => `<tr>${r.map((c, ci) => ci ? `<td class="n">${esc(String(c))}</td>` : `<td>${esc(String(c))}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`;
+  } else {
+    html += `<div class="card"><h2>أداء الكاشيرز</h2><div class="note">ارفع تقرير «متابعة الخزينة» لعرض أداء الكاشيرز هنا.</div></div>`;
+  }
+
+  el.innerHTML = html;
+}
+
 root.SonoRender = { insHtml, insDraw, renderSummary, renderKpi, renderRisks, renderRecos, renderPlan, renderData,
-                    renderAiTab, renderArchive, renderComparison, drawRibbon };
+                    renderAiTab, renderArchive, renderComparison, renderTeam, drawRibbon };
 })(window);

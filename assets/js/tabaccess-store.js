@@ -15,6 +15,7 @@ const ALL_TABS = [
   { key: 'risk', label: 'المخاطر' },
   { key: 'rec',  label: 'التوصيات' },
   { key: 'plan', label: 'خطة العمل' },
+  { key: 'team', label: 'أداء الفريق' },
   { key: 'dist', label: 'توزيع الأرباح (حسّاس — مخفي افتراضياً)', sensitive: true },
   { key: 'roi',  label: 'التسويق والعائد' },
   { key: 'amida', label: 'توزيع أرباح الأميدا (حسّاس — مخفي افتراضياً)', sensitive: true },
