@@ -202,32 +202,76 @@ function initNotifCenter() {
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const when = t => { try { return new Date(t).toLocaleString('ar-EG'); } catch (e) { return ''; } };
 
-  async function refresh() {
+  const renderRow = (r, seen) => `<div class="notifItem${seen && r.created_at > seen ? ' unread' : ''}">
+      <b>${esc(r.actor_name || '')} · ${when(r.created_at)}</b>${esc(r.message)}</div>`;
+
+  /* الإشعارات لا تختفي أبداً عند فتح الجرس — تفضل كلها ظاهرة، والفرق الوحيد
+     هو تظليل اللي اتشافت قبل كده. نستخدم نفس "seen" القديم طول ما الجرس مفتوح
+     حتى لا يفقد التظليل قبل ما المستخدم يشوفه، ونحدّث "آخر مشاهدة" في الخلفية فقط. */
+  async function refresh(freezeSeen) {
     let rows = [];
     try { rows = await N.list(AU.client()); } catch (e) {}
-    const seen = N.lastSeen();
+    const seen = freezeSeen || N.lastSeen();
     const unread = seen ? rows.filter(r => r.created_at > seen).length : rows.length;
     const badge = $('notifBadge');
     badge.textContent = unread > 99 ? '99+' : String(unread);
     badge.classList.toggle('hide', !unread);
     $('notifList').innerHTML = rows.length
-      ? rows.map(r => `<div class="notifItem${seen && r.created_at > seen ? ' unread' : ''}">
-          <b>${esc(r.actor_name || '')} · ${when(r.created_at)}</b>${esc(r.message)}</div>`).join('')
+      ? rows.map(r => renderRow(r, seen)).join('')
       : '<div class="notifItem">لا توجد إشعارات بعد.</div>';
+    return seen;
   }
 
+  let openSeen = null;
   $('btnNotif').addEventListener('click', e => {
     e.stopPropagation();
     const menu = $('notifMenu');
+    const wasHidden = menu.classList.contains('hide');
     menu.classList.toggle('hide');
-    if (!menu.classList.contains('hide')) { refresh(); N.markSeen(); setTimeout(refresh, 300); }
+    if (wasHidden) {
+      openSeen = N.lastSeen();
+      refresh(openSeen);          /* يعرض بنفس "آخر مشاهدة" القديمة طول ما الجرس مفتوح */
+      N.markSeen();                /* يحدّث العدّاد القادم فقط، من غير ما يغيّر التظليل الحالي */
+      $('notifBadge').classList.add('hide');
+    }
   });
 
-  document.addEventListener('click', () => $('notifMenu').classList.add('hide'));
+  document.addEventListener('click', () => { $('notifMenu').classList.add('hide'); openSeen = null; });
   $('notifMenu').addEventListener('click', e => e.stopPropagation());
 
+  $('btnNotifAll').addEventListener('click', e => { e.stopPropagation(); openNotifPage(); });
+  $('notifPageClose').addEventListener('click', () => $('notifPage').classList.add('hide'));
+
+  async function openNotifPage() {
+    $('notifMenu').classList.add('hide');
+    $('notifPage').classList.remove('hide');
+    const cfg = N.getRetention();
+    $('notifRetMode').value = cfg.mode;
+    $('notifRetValue').value = cfg.value;
+    await refreshFullList();
+  }
+  async function refreshFullList() {
+    let rows = [];
+    try { rows = await N.list(AU.client(), 300); } catch (e) {}
+    $('notifFullList').innerHTML = rows.length
+      ? rows.map(r => renderRow(r, null)).join('')
+      : '<div class="notifItem">لا توجد إشعارات.</div>';
+  }
+  $('notifRetSave').addEventListener('click', async () => {
+    const cfg = { mode: $('notifRetMode').value, value: Math.max(1, parseInt($('notifRetValue').value, 10) || 0) };
+    N.setRetention(cfg);
+    $('notifRetMsg').textContent = 'جارٍ المسح…';
+    try {
+      const r = await N.purge(AU.client(), cfg);
+      $('notifRetMsg').textContent = `تم الحفظ — اتمسح ${r.deleted} إشعار قديم.`;
+    } catch (e) { $('notifRetMsg').textContent = 'تعذّر المسح.'; }
+    refreshFullList(); refresh();
+  });
+
   refresh();
-  N.subscribe(AU.client(), () => refresh());
+  N.subscribe(AU.client(), () => { if (openSeen === null) refresh(); });
+  /* مسح تلقائي هادئ حسب الإعداد المحفوظ — مرة واحدة عند الدخول */
+  N.purge(AU.client(), N.getRetention()).catch(() => {});
 }
 
 /* ---------- نظرة سريعة من آخر تحليل محفوظ في الأرشيف — تظهر قبل رفع أي ملف ---------- */
