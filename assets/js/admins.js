@@ -256,11 +256,31 @@ async function renderUsageLog() {
     return;
   }
   el.innerHTML = '<h3>سجل الاستخدام</h3><div class="note">جارٍ التحميل…</div>';
-  let rows;
-  try { rows = await UL.listAll(sb); } catch (e) { el.innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+  let rows, users;
+  try { rows = await UL.listAll(sb); users = await listUsers(); }
+  catch (e) { el.innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+
+  /* آخر رفعة تقرير فعلية لكل مستخدم — من نفس السجل، بلا استعلام إضافي */
+  const lastUpload = {};
+  rows.forEach(r => {
+    if (!r.reports || !r.reports.length) return;
+    const k = r.admin_id;
+    if (!lastUpload[k] || new Date(r.started_at) > new Date(lastUpload[k])) lastUpload[k] = r.started_at;
+  });
+  const STALE_DAYS = 7, now = Date.now();
+  const staff = users.filter(u => RO().normalize(u.role) !== 'سوبر أدمن');
+  const stale = staff.map(u => {
+    const last = lastUpload[u.key];
+    const days = last ? Math.floor((now - new Date(last)) / 86400000) : null;
+    return { name: u.name || u.email, days };
+  }).filter(w => w.days === null || w.days > STALE_DAYS);
+  const staleHtml = stale.length ? `<div class="note" style="border:1px solid #D0402A;color:#D0402A;padding:10px;border-radius:8px;margin-bottom:10px">
+    <b>تنبيه رفع متأخر:</b> ${stale.map(w => esc(w.name) + (w.days === null ? ' (لم يرفع أي تقرير بعد)' : ` (آخر رفعة قبل ${w.days} يوم)`)).join('، ')}
+  </div>` : '';
 
   el.innerHTML = `
     <h3>سجل الاستخدام</h3>
+    ${staleHtml}
     <div class="note">آخر ${rows.length} جلسة دخول. المدة تقريبية — تُحدَّث كل دقيقة أثناء استخدام اللوحة فعلياً.</div>
     ${rows.length ? `<div class="tscroll"><table class="utable">
       <thead><tr><th>المستخدم</th><th>بداية الدخول</th><th>مدة الاستخدام</th><th>التقارير المرفوعة</th></tr></thead>
