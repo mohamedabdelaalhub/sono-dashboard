@@ -104,10 +104,13 @@ const AD = {
     const fb = fallbackDate(ds), income = [], expense = [];
     ds.rows.forEach(r => {
       const amt = num(r.amount);
+      /* بعض السطور بلا رقم إيصال — لو تُركت فارغة يتشابه مفتاح أكتر من سطر
+         فيُحذَف أحدهما بالخطأ كأنه مكرَّر. نبني مفتاحاً بديلاً مميَّزاً لكل سطر. */
       if (amt) income.push(inc({
         date: r.date || fb, amount: amt,
         services: svcList(r.service), patient: clean(r.patient), fileNo: r.fileNo,
-        receipt: r.receipt, note: r.user ? 'حصّلها: ' + clean(r.user) : '', src: ds.file
+        receipt: r.receipt || ('R|' + clean(r.patient) + '|' + (r.date || fb || '') + '|' + amt + '|' + clean(r.service)),
+        note: r.user ? 'حصّلها: ' + clean(r.user) : '', src: ds.file
       }));
       const fee = num(r.docAmount);
       if (fee > 0 && r.doctor) expense.push(exp({
@@ -230,11 +233,16 @@ const AD = {
     ds.rows.forEach(r => {
       const amt = num(r.amount);
       if (!amt) return;
-      const cat = clean(r.mainAccount) || 'غير مصنّف';
-      const isDoc = /اتعاب/.test(cat);
+      const account = clean(r.account) || '';
+      const mainCat = clean(r.mainAccount) || 'غير مصنّف';
+      /* بند مورّد باسم يدل على مستلزمات طبية (زي «شركة الصاوي للمستلزمات الطبية»)
+         يُحسب ضمن «مستلزمات طبية» حتى لو بنده الرئيسي في الدفاتر «الموردين» عموماً —
+         وإلا يفوت على مؤشر تثبيت المستهلكات بالدفاتر رغم وجودها فعلاً. */
+      const cat = /مستلزم|مستهلك|صيدل|دواء|ادويه|عقاقير/.test(account) ? 'مستلزمات طبية' : mainCat;
+      const isDoc = /اتعاب/.test(mainCat);
       expense.push(exp({
         date: r.date || fb, amount: amt,
-        bayan: clean(r.account) || clean(r.note) || cat,
+        bayan: account || clean(r.note) || cat,
         note: clean(r.note), cat, group: expGroup(cat),
         doctor: isDoc ? (clean(r.account) || null) : null,
         voucher: r.receipt, src: ds.file

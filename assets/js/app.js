@@ -185,6 +185,49 @@ async function enterApp() {
   loadSavedSchedule();
   if (isAmidaInvestor()) renderTab('amida');
   if (RO.can(u, 'upload')) renderQuickView();
+  initNotifCenter();
+}
+
+/* ---------- مركز الإشعارات: جرس بجانب اسم المستخدم للسوبر أدمن والمدير ---------- */
+function initNotifCenter() {
+  const u = AU.user();
+  const allowed = root.SonoNotify && AU.mode() === 'supabase' &&
+    (RO.isSuper(u) || RO.normalize(u.role) === 'مدير');
+  const wrap = $('notifWrap');
+  if (!wrap) return;
+  if (!allowed) { wrap.hidden = true; return; }
+  wrap.hidden = false;
+  const N = root.SonoNotify;
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const when = t => { try { return new Date(t).toLocaleString('ar-EG'); } catch (e) { return ''; } };
+
+  async function refresh() {
+    let rows = [];
+    try { rows = await N.list(AU.client()); } catch (e) {}
+    const seen = N.lastSeen();
+    const unread = seen ? rows.filter(r => r.created_at > seen).length : rows.length;
+    const badge = $('notifBadge');
+    badge.textContent = unread > 99 ? '99+' : String(unread);
+    badge.classList.toggle('hide', !unread);
+    $('notifList').innerHTML = rows.length
+      ? rows.map(r => `<div class="notifItem${seen && r.created_at > seen ? ' unread' : ''}">
+          <b>${esc(r.actor_name || '')} · ${when(r.created_at)}</b>${esc(r.message)}</div>`).join('')
+      : '<div class="notifItem">لا توجد إشعارات بعد.</div>';
+  }
+
+  $('btnNotif').addEventListener('click', e => {
+    e.stopPropagation();
+    const menu = $('notifMenu');
+    menu.classList.toggle('hide');
+    if (!menu.classList.contains('hide')) { refresh(); N.markSeen(); setTimeout(refresh, 300); }
+  });
+
+  document.addEventListener('click', () => $('notifMenu').classList.add('hide'));
+  $('notifMenu').addEventListener('click', e => e.stopPropagation());
+
+  refresh();
+  N.subscribe(AU.client(), () => refresh());
 }
 
 /* ---------- نظرة سريعة من آخر تحليل محفوظ في الأرشيف — تظهر قبل رفع أي ملف ---------- */
@@ -415,6 +458,8 @@ async function handleFiles(list) {
         '   وأن الملف مُصدَّر من نظام المركز بلا تعديل يدوي على الترويسة.');
     }
     if (root.SonoUsageLog) root.SonoUsageLog.addFiles(AU.client(), arr.map(f => f.name));
+    if (root.SonoNotify && arr.length) root.SonoNotify.log(AU.client(), AU.user(), 'upload',
+      `رفع ${arr.length > 1 ? arr.length + ' ملفات' : 'ملف «' + arr[0].name + '»'}`);
     rebuild();
     if (warnings.length) alert('ملاحظات القراءة:\n\n' + warnings.join('\n'));
   } catch (e) {

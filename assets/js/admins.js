@@ -131,6 +131,7 @@ async function renderUsers() {
     const em = $('nuEmail').value, nm = $('nuName').value, rl = $('nuRole').value;
     try {
       await addUser(em, nm, rl);
+      if (root.SonoNotify) root.SonoNotify.log(AU().client(), AU().user(), 'user', `أضاف مستخدماً جديداً: ${nm || em} (${rl})`);
       let extra = '';
       if (!local && $('nuInvite').checked) {
         try { await AU().invite(em); extra = ' وأُرسلت له دعوة برابط دخول مباشر.'; }
@@ -181,20 +182,31 @@ async function fillUsers() {
     const key = tr.dataset.k; if (!key) return;
     const sel = tr.querySelector('.uRole');
     if (sel) sel.onchange = async () => {
-      try { await updateUser(key, { role: sel.value }); msg('uMsg', 'ok', 'تم تحديث الدور.'); await fillUsers(); }
-      catch (e) { msg('uMsg', 'err', e.message); await fillUsers(); }
+      try {
+        await updateUser(key, { role: sel.value }); msg('uMsg', 'ok', 'تم تحديث الدور.');
+        if (root.SonoNotify) root.SonoNotify.log(AU().client(), AU().user(), 'user',
+          `غيّر دور ${tr.children[0].textContent.trim()} إلى ${sel.value}`);
+        await fillUsers();
+      } catch (e) { msg('uMsg', 'err', e.message); await fillUsers(); }
     };
     const tog = tr.querySelector('.uTog');
     if (tog) tog.onclick = async () => {
       const on = tog.textContent.trim() === 'تفعيل';
-      try { await updateUser(key, { active: on }); await fillUsers(); }
-      catch (e) { msg('uMsg', 'err', e.message); }
+      try {
+        await updateUser(key, { active: on });
+        if (root.SonoNotify) root.SonoNotify.log(AU().client(), AU().user(), 'user',
+          `${on ? 'فعّل' : 'أوقف'} حساب ${tr.children[0].textContent.trim()}`);
+        await fillUsers();
+      } catch (e) { msg('uMsg', 'err', e.message); }
     };
     const del = tr.querySelector('.uDel');
     if (del) del.onclick = async () => {
       if (!confirm('حذف هذا المستخدم نهائياً من قائمة المصرّح لهم؟')) return;
-      try { await removeUser(key); await fillUsers(); msg('uMsg', 'ok', 'تم الحذف.'); }
-      catch (e) { msg('uMsg', 'err', e.message); }
+      const nm = tr.children[0].textContent.trim();
+      try {
+        await removeUser(key); await fillUsers(); msg('uMsg', 'ok', 'تم الحذف.');
+        if (root.SonoNotify) root.SonoNotify.log(AU().client(), AU().user(), 'user', `حذف مستخدم: ${nm}`);
+      } catch (e) { msg('uMsg', 'err', e.message); }
     };
     const ai = tr.querySelector('.uAi');
     if (ai) ai.onchange = async () => {
@@ -356,6 +368,7 @@ async function renderTabAccess() {
       saveAllBtn.disabled = false; saveAllBtn.textContent = 'حفظ كل التابات';
       if (fail.length) msg('taMsg', 'err', `تم حفظ ${ok} وفشل: ` + fail.join('، '));
       else msg('taMsg', 'ok', `تم حفظ تابات ${ok} مستخدم.`);
+      if (root.SonoNotify && ok) root.SonoNotify.log(sb, AU().user(), 'tabs', `تعديل صلاحيات التابات لـ ${ok} مستخدم`);
     };
   }
 
@@ -370,6 +383,7 @@ async function renderTabAccess() {
       try {
         await TA.save(sb, key, checked, email);
         msg('taMsg', 'ok', 'تم حفظ تابات ' + (tr.children[0].textContent || email) + '.');
+        if (root.SonoNotify) root.SonoNotify.log(sb, AU().user(), 'tabs', `تعديل صلاحيات التابات لـ ${tr.children[0].textContent || email}`);
       } catch (e) { msg('taMsg', 'err', e.message); }
       finally { btn.disabled = false; btn.textContent = 'حفظ'; }
     };

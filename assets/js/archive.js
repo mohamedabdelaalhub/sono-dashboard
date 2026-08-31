@@ -97,6 +97,7 @@ async function save(A, E, cmp, files, title) {
   };
   const { data, error } = await sb.from('reports').insert(row).select('id').maybeSingle();
   if (error) throw new Error(dbErr(error.message));
+  if (root.SonoNotify) root.SonoNotify.log(sb, u, 'archive', `حفظ تقرير «${row.title}» في الأرشيف`);
   return data;
 }
 
@@ -130,6 +131,7 @@ async function saveComparison(C, titles, title) {
   };
   const { data, error } = await sb.from('reports').insert(row).select('id').maybeSingle();
   if (error) throw new Error(dbErr(error.message));
+  if (root.SonoNotify) root.SonoNotify.log(sb, u, 'archive', `حفظ تقرير مقارنة «${row.title}»`);
   return data;
 }
 

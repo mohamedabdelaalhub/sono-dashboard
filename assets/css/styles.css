@@ -197,6 +197,11 @@ nav.tabs button .cnt{display:inline-block;background:rgba(255,255,255,.22);borde
 nav.tabs button[aria-selected="false"] .cnt{background:var(--paper);color:var(--muted)}
 nav.tabs button .cnt.alert{background:#D0402A;color:#fff}
 nav.tabs button[aria-selected="false"] .cnt.alert{background:#D0402A;color:#fff}
+.notifBadge{position:absolute;top:-4px;left:-4px;background:#D0402A;color:#fff;font-size:10px;
+  min-width:16px;height:16px;line-height:16px;border-radius:8px;text-align:center;padding:0 3px}
+.notifItem{padding:6px 8px;border-bottom:1px solid #f0f0f0;font-size:12.5px}
+.notifItem b{display:block;font-size:11px;color:var(--muted);font-weight:500}
+.notifItem.unread{background:#fff6f2}
 
 /* ---------- البطاقات ---------- */
 .card{background:var(--surface);border-radius:var(--r);padding:20px 22px 18px;box-shadow:var(--shadow);margin-bottom:20px}
