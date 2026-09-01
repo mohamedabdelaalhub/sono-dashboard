@@ -410,7 +410,7 @@ tr.done td{opacity:.45;text-decoration:line-through}
 @keyframes sp{to{transform:rotate(360deg)}}
 #busy p{font-size:13.5px;color:var(--muted);text-align:center}
 
-footer.pg{color:var(--muted);font-size:12px;text-align:center;margin-top:14px;line-height:1.6}
+footer.pg{color:var(--muted);font-size:12px;text-align:center;margin-top:26px;line-height:1.9}
 
 /* ---------- الطباعة / PDF ---------- */
 @media print{
