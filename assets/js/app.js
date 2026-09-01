@@ -179,7 +179,8 @@ async function enterApp() {
   $('landing').classList.add('hide');
   $('app').classList.remove('hide');
   $('pgFoot').innerHTML =
-    `جميع المبالغ بالجنيه المصري · التحليل يتم بالكامل داخل متصفحك ولا تُرفع البيانات إلى أي خادم<br>${CFG.clinicName || ''}`;
+    `جميع المبالغ بالجنيه المصري · التحليل يتم بالكامل داخل متصفحك ولا تُرفع البيانات إلى أي خادم<br>${CFG.clinicName || ''}
+    <div style="margin-top:6px;opacity:.7">© جميع الحقوق محفوظة لشركة دار النقاهة الطبية</div>`;
   $('tabs').classList.remove('hide');
   applyPerms();
   loadSavedSchedule();
