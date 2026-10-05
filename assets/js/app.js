@@ -365,7 +365,7 @@ function initUpload() {
 
 function clearAll() {
   state.files = []; state.income = []; state.expense = []; state.status = []; state.datasets = [];
-  state.adapted = null;
+  state.adapted = null; state.activeDatasets = null; state.periodExcluded = []; state.ins = null; state.E = null; state.cmp = null;
   state.metaCampaigns = null; state.bankWithdrawals = null; state.metaInvoice = null;
   state.A = null; state.C = null; state.cSources = null;
   $('tabCmp').classList.add('hide'); $('tabRep').classList.add('hide');
@@ -466,12 +466,12 @@ async function handleFiles(list) {
         auAllSt.forEach(d => state.datasets.push(d));
         const auSt = auAllSt[0] || null;
         state.files.push({ name: f.name, kind: 'status', income: [], expense: [],
-                           status: st.rows, period: st.period,
+                           status: st.rows, period: st.period, sourceFile: f.name, sourceSheet: auSt && auSt.sheet,
                            reportId: auSt ? auSt.id : '', reportName: auSt ? auSt.name : '',
                            rows: auSt ? auSt.rows.length : st.rows.length });
         /* شيتات إضافية مطابقة داخل نفس الملف — شريحة لكل واحدة */
         auAllSt.slice(1).forEach(d => {
-          state.files.push({ name: `${f.name} — ${d.sheet}`, kind: 'report', reportId: d.id,
+          state.files.push({ name: `${f.name} — ${d.sheet}`, sourceFile: f.name, sourceSheet: d.sheet, kind: 'report', reportId: d.id,
                              reportName: d.name, income: [], expense: [], status: [], rows: d.rows.length });
         });
         continue;
@@ -483,7 +483,7 @@ async function handleFiles(list) {
       if (auAll.length) {
         auAll.forEach((au, i) => {
           state.datasets.push(au);
-          state.files.push({ name: i === 0 ? f.name : `${f.name} — ${au.sheet}`, kind: 'report',
+          state.files.push({ name: i === 0 ? f.name : `${f.name} — ${au.sheet}`, sourceFile: f.name, sourceSheet: au.sheet, kind: 'report',
                              reportId: au.id, reportName: au.name,
                              income: [], expense: [], status: [], rows: au.rows.length });
         });
@@ -517,40 +517,64 @@ function renderChips() {
     <span class="chip">${f.name} · ${f.kind === 'report' ? f.reportName : f.kind === 'status' ? 'بيان حالة' : 'خزينة'}${f.src === 'pdf' ? ' · PDF' : ''} · ${(f.income.length + f.expense.length) || (f.status || []).length || f.rows || 0} سطر
       <button data-i="${i}" title="إزالة">×</button></span>`).join('');
   $('fileChips').querySelectorAll('button').forEach(b => b.onclick = () => {
-    state.files.splice(+b.dataset.i, 1); rebuild();
+    const removed = state.files.splice(+b.dataset.i, 1)[0];
+    const base = removed.sourceFile || removed.name;
+    state.datasets = state.datasets.filter(ds => !(ds.file === base && (!removed.sourceSheet || ds.sheet === removed.sourceSheet)));
+    if (removed.kind === 'status') {
+      state.datasets = state.datasets.filter(ds => ds.file !== base);
+      state.files = state.files.filter(f => (f.sourceFile || f.name) !== base);
+    }
+    rebuild();
   });
 }
 
 function mergeAll() {
-  const seenI = new Set(), seenE = new Set(), seenS = new Set();
-  const inc = [], exp = [], sta = [];
-  state.files.forEach(f => {
-    (f.income || []).forEach(r => {
-      const k = [r.date, r.amount, r.receipt, r.fileNo, r.services.join('|')].join('¦');
-      if (seenI.has(k)) return; seenI.add(k); inc.push(r);
+  state.adapted = root.SonoAdapters.apply(state.datasets);
+  const sources = state.files.filter(f => (f.income || []).length || (f.expense || []).length)
+    .map(f => ({kind: f.kind, name: f.name, income: f.income, expense: f.expense, period: f.period}));
+  const merged = root.SonoDataIntegrity.mergeSources(sources.concat(state.adapted.sources || []));
+  state.income = merged.income; state.expense = merged.expense;
+  state.sourceSelection = merged;
+  state.status = state.files.flatMap(f => f.status || []);
+  state.statusPeriod = null; state.activeDatasets = null;
+}
+function selectedRange() {
+  return root.SonoDataIntegrity.bounds($('gran').value, $('period').value, $('dFrom').value, $('dTo').value);
+}
+function datedRecords() {
+  return state.income.concat(state.expense, state.datasets.flatMap(ds => ds.rows || []))
+    .filter(r => root.SonoDataIntegrity.date(r.date));
+}
+function operationalSlice(range) {
+  return root.SonoDataIntegrity.sliceDatasets(state.datasets, range);
+}
+function statusSlice(range) {
+  const rows = [], periods = [], copies = new Map();
+  state.files.filter(f => (f.status || []).length).forEach(f => {
+    const p = root.SonoDataIntegrity.range([], f.period);
+    if (range && !root.SonoDataIntegrity.contained(p, range)) return;
+    const counts = new Map();
+    f.status.forEach(r => {
+      const k = JSON.stringify([p.from,p.to,r.doctor,r.service,r.qty,r.net,r.gross]);
+      const n = (counts.get(k) || 0) + 1; counts.set(k,n);
+      if (n > (copies.get(k) || 0)) rows.push(r);
     });
-    (f.expense || []).forEach(r => {
-      const k = [r.date, r.amount, r.bayan, r.voucher].join('¦');
-      if (seenE.has(k)) return; seenE.add(k); exp.push(r);
-    });
-    (f.status || []).forEach(r => {
-      const k = [r.doctor, r.service, r.qty, r.net, r.gross].join('¦');
-      if (seenS.has(k)) return; seenS.add(k); sta.push(r);
-    });
+    counts.forEach((n,k) => copies.set(k, Math.max(n,copies.get(k) || 0)));
+    if (p.from && p.to) periods.push(p);
   });
-  /* حوّل التقارير المتعرَّف عليها إلى إيراد/مصروف قياسي */
-  state.adapted = root.SonoAdapters ? root.SonoAdapters.apply(state.datasets) : { income: [], expense: [], used: [], skipped: [] };
-  state.adapted.income.forEach(r => {
-    const k = ['A', r.date, r.amount, r.receipt, r.fileNo, r.services.join('|')].join('¦');
-    if (seenI.has(k)) return; seenI.add(k); inc.push(r);
+  const dated = periods.length === state.files.filter(f => (f.status || []).length && (!range || root.SonoDataIntegrity.contained(root.SonoDataIntegrity.range([], f.period), range))).length;
+  const period = dated && periods.length ? {from: AN.dparse(periods.map(p => p.from).sort()[0]), to: AN.dparse(periods.map(p => p.to).sort().pop())} : null;
+  return {rows, period};
+}
+function feePeriod(expense, selected) {
+  const rows = expense.filter(r => r.doctor);
+  if (!rows.length) return null;
+  const periods = rows.map(r => {
+    const p = r._aggregatePeriod || r._financialPeriod || root.SonoDataIntegrity.range([r]);
+    return selected && p.from && p.to ? {from: p.from > selected.from ? p.from : selected.from, to: p.to < selected.to ? p.to : selected.to} : p;
   });
-  state.adapted.expense.forEach(r => {
-    const k = ['A', r.date, r.amount, r.bayan, r.voucher].join('¦');
-    if (seenE.has(k)) return; seenE.add(k); exp.push(r);
-  });
-  state.income = inc; state.expense = exp; state.status = sta;
-  /* فترة تقرير بيان الحالة — يُستخدم عند غياب بيانات الخزينة */
-  state.statusPeriod = (state.files.find(f => f.period && f.period.to) || {}).period || null;
+  if (periods.some(p => !p.from || !p.to)) return null;
+  return {from: AN.dparse(periods.map(p => p.from).sort()[0]), to: AN.dparse(periods.map(p => p.to).sort().pop())};
 }
 
 /* ============================================================
@@ -573,7 +597,7 @@ function buildPeriods() {
   $('grpFrom').classList.toggle('hide', !custom);
   $('grpTo').classList.toggle('hide', !custom);
   if (custom || g === 'all') return;
-  const ps = AN.listPeriods(state.income.concat(state.expense), g);
+  const ps = AN.listPeriods(datedRecords(), g);
   $('period').innerHTML = ps.map(p => `<option value="${p.key}">${p.label}</option>`).join('');
   if (ps.length) $('period').value = ps[ps.length - 1].key;
 }
@@ -586,19 +610,20 @@ function currentSlice() {
   if (g === 'custom') {
     const a = $('dFrom').value, b = $('dTo').value;
     if (!a || !b) return { cur: all, prev: null, label: 'كل البيانات المرفوعة' };
-    const inR = r => r.date >= a && r.date <= b;
+    if (a > b) throw new Error('تاريخ البداية يجب أن يسبق تاريخ النهاية.');
+    const inR = r => root.SonoDataIntegrity.matches(r, {from:a,to:b});
     const days = Math.max(1, Math.round((new Date(b) - new Date(a)) / 86400000) + 1);
     const pb = new Date(new Date(a) - 86400000), pa = new Date(pb - (days - 1) * 86400000);
-    const inP = r => r.date >= P.iso(pa) && r.date <= P.iso(pb);
+    const inP = r => root.SonoDataIntegrity.matches(r, {from:P.iso(pa),to:P.iso(pb)});
     const prev = { income: state.income.filter(inP), expense: state.expense.filter(inP) };
     return { cur: { income: state.income.filter(inR), expense: state.expense.filter(inR) },
              prev: (prev.income.length || prev.expense.length) ? prev : null, label: 'فترة مخصصة' };
   }
 
   const key = $('period').value;
-  const ps = AN.listPeriods(state.income.concat(state.expense), g).map(p => p.key);
+  const ps = AN.listPeriods(datedRecords(), g).map(p => p.key);
   const idx = ps.indexOf(key);
-  const inK = k => r => AN.periodKey(r.date, g) === k;
+  const inK = k => r => root.SonoDataIntegrity.matches(r, root.SonoDataIntegrity.bounds(g, k));
   const cur = { income: state.income.filter(inK(key)), expense: state.expense.filter(inK(key)) };
   let prev = null;
   if (idx > 0) { const pk = ps[idx - 1];
@@ -615,10 +640,14 @@ function applyPeriod() {
       state.C = null; state.cSources = null;
       const s = currentSlice();
       state.A = AN.analyze(s.cur.income, s.cur.expense, { label: s.label });
-      /* دمج تقرير بيان الحالة — يُنسب لكل الفترة المرفوعة */
-      state.A.status = AN.analyzeStatus(state.status, state.A.doctors, {
-        status  : state.statusPeriod,
-        treasury: { from: state.A.meta.from, to: state.A.meta.to }
+      const selected = selectedRange(), operational = operationalSlice(selected), status = statusSlice(selected);
+      state.activeDatasets = operational.datasets;
+      state.periodExcluded = operational.excluded;
+      state.ins = root.SonoInsights.build(state.activeDatasets, {doctorRevenue: doctorRevenueMap(state.activeDatasets)});
+      state.A.periodExcluded = state.periodExcluded;
+      state.statusPeriod = status.period;
+      state.A.status = AN.analyzeStatus(status.rows, state.A.doctors, {
+        status: status.period, treasury: feePeriod(s.cur.expense, selected)
       });
       if (state.A.status && !state.A.meta.from && state.statusPeriod) {
         state.A.meta.from = state.statusPeriod.from || null;
@@ -628,11 +657,13 @@ function applyPeriod() {
       }
       const prevA = s.prev ? AN.analyze(s.prev.income, s.prev.expense, {}) : null;
       state.cmp = (state.A.kpi.revenue > 0 || state.A.kpi.cost > 0) ? AN.compare(state.A, prevA) : null;
+      delete RENDERED.rep;
       state.A.ins = state.ins || { has: false, modules: [], risks: [], recos: [], plan: [], blocks: [], names: [] };
       state.E = RU.evaluate(state.A, state.cmp);
       $('cmpLbl').textContent = s.prevLabel ? 'مقابل ' + s.prevLabel
         : (s.prev ? 'مقابل الفترة السابقة' : 'لا توجد فترة سابقة للمقارنة');
       state.A.dupWarn = state.dupWarn;
+      state.A.financialSources = state.sourceSelection.used;
       setRiskBadge(state.E.risks.length, state.E.risks.some(r => r.sev === 'high' || r.sev === 'critical'));
       $('cRec').textContent  = state.E.recos.length;
       $('cPlan').textContent = state.E.plan.length;
@@ -647,12 +678,14 @@ function applyPeriod() {
 }
 
 /* إيراد كل طبيب من التقارير التي تربط الطبيب بالمبلغ — يغذّي تحليل الإنتاجية */
-function doctorRevenueMap() {
+function doctorRevenueMap(datasets) {
   const m = {};
   const add = (d, v) => { const k = String(d || '').trim(); if (!k || !isFinite(v)) return; m[k] = (m[k] || 0) + v; };
   const F = { statusDetail: 'total', statusSummary: 'net', receipts: 'amount',
               doctorLaser: 'collected', patientBalance: 'amount', doctorClaim: 'svcValue' };
-  state.datasets.forEach(ds => {
+  const available = datasets || state.datasets;
+  const primary = ['statusDetail', 'receipts', 'statusSummary', 'doctorLaser', 'patientBalance', 'doctorClaim'].find(id => available.some(ds => ds.id === id && ds.rows.some(r => r.doctor)));
+  available.filter(ds => ds.id === primary).forEach(ds => {
     const f = F[ds.id];
     if (!f) return;
     (ds.rows || []).forEach(r => add(r.doctor, +r[f] || 0));
@@ -666,7 +699,7 @@ function scheduleCtx() {
   return {
     canSave: RO.can(u, 'upload') && !!state.schedule && !state.schedule.persisted,
     vs: state.schedule && root.SonoSchedule
-        ? root.SonoSchedule.versusActual(state.schedule, state.datasets, state.A) : null,
+        ? root.SonoSchedule.versusActual(state.schedule, state.activeDatasets || state.datasets, state.A) : null,
     onSave: async () => {
       await root.SonoScheduleStore.save(state.schedule, u);
       state.schedule.persisted = true;
@@ -678,7 +711,7 @@ function scheduleCtx() {
 }
 
 function roiCtx() {
-  const statusDs = state.datasets.find(d => d.id === 'statusDetail');
+  const statusDs = (state.activeDatasets || state.datasets).find(d => d.id === 'statusDetail');
   return {
     campaigns: state.metaCampaigns,
     bank: state.bankWithdrawals,
@@ -725,8 +758,8 @@ function rebuild() {
   delete RENDERED.rep;
 
   /* تحذير الازدواج: أكثر من تقرير يصف نفس الإيراد */
-  const revSrc = (state.adapted.used || []).filter(u => u.income > 0);
-  state.dupWarn = revSrc.length > 1 ? revSrc.map(u => u.name) : null;
+  state.dupWarn = (state.sourceSelection.excluded || []).map(r => r.name + (r.side === 'income' ? ' — إيراد' : ' — مصروف'));
+  if (!state.dupWarn.length) state.dupWarn = null;
 
   /* التحليلات التشغيلية: محلّل مخصّص لكل نوع تقرير */
   state.ins = root.SonoInsights
@@ -751,7 +784,7 @@ function rebuild() {
   $('welcome').classList.add('hide');
   $('toolbar').classList.remove('hide');
   $('tabs').classList.remove('hide');
-  const dates = state.income.concat(state.expense).map(r => r.date).sort();
+  const dates = datedRecords().map(r => root.SonoDataIntegrity.date(r.date)).sort();
   const span = dates.length ? (new Date(dates[dates.length - 1]) - new Date(dates[0])) / 86400000 : 0;
   $('gran').value = span > 400 ? 'quarter' : span > 45 ? 'month' : span > 10 ? 'week' : 'all';
   buildPeriods();
@@ -785,8 +818,8 @@ function renderTab(t, force) {
     state.tab = t; markTabs(t); showPane(t);
     $('welcome').classList.add('hide');
     if (!RENDERED.rep) {
-      root.SonoRenderReports.render($(PANES.rep), state.datasets);
-      root.SonoRenderReports.drawCharts($(PANES.rep), state.datasets);
+      root.SonoRenderReports.render($(PANES.rep), (state.activeDatasets || state.datasets));
+      root.SonoRenderReports.drawCharts($(PANES.rep), state.activeDatasets || state.datasets);
       RENDERED.rep = 1;
     }
     return;
@@ -867,11 +900,10 @@ function compareUploadedPeriods() {
   const g = $('gran').value;
   if (g === 'all' || g === 'custom')
     throw new Error('اختر تقسيماً زمنياً (أسبوعي/شهري/ربع سنوي/سنوي) أولاً حتى تتكوّن فترات للمقارنة.');
-  const all = state.income.concat(state.expense);
-  const ps = AN.listPeriods(all, g);
+  const ps = AN.listPeriods(datedRecords(), g);
   if (ps.length < 2)
     throw new Error(`الملفات المرفوعة تغطي فترة واحدة فقط بهذا التقسيم. ارفع ملفات فترات أخرى، أو غيّر التقسيم.`);
-  const inK = k => r => AN.periodKey(r.date, g) === k;
+  const inK = k => r => root.SonoDataIntegrity.matches(r, root.SonoDataIntegrity.bounds(g, k));
   const loaded = ps.map(p => {
     const A = AN.analyze(state.income.filter(inK(p.key)), state.expense.filter(inK(p.key)), {});
     A.status = null;
@@ -945,8 +977,8 @@ function draw(t, el) {
     ai  : () => RD.renderAiTab(el, state),
     arch: () => RD.renderArchive(el, state, archiveHandlers()),
     data: () => RD.renderData(el, state.A, state.E),
-    rep : () => { root.SonoRenderReports.render(el, state.datasets);
-                  root.SonoRenderReports.drawCharts(el, state.datasets); },
+    rep : () => { root.SonoRenderReports.render(el, state.activeDatasets || state.datasets);
+                  root.SonoRenderReports.drawCharts(el, state.activeDatasets || state.datasets); },
     sch : () => root.SonoRenderSchedule.render(el, state.schedule, scheduleCtx()),
     cmp : () => { /* يُرسم عند عرض المقارنة فقط */ }
   };
@@ -966,8 +998,8 @@ function initExport() {
     busy(true, 'جارٍ بناء ملف الإكسل…');
     setTimeout(() => {
       try {
-        if (state.A) EX.toXlsx(state.A, state.E, state.ctx, state.datasets);
-        else if (state.datasets.length) EX.datasetsXlsx(state.datasets, state.ctx, state.ins);
+        if (state.A) EX.toXlsx(state.A, state.E, state.ctx, state.activeDatasets || state.datasets);
+        else if (state.datasets.length) EX.datasetsXlsx(state.activeDatasets || state.datasets, state.ctx, state.ins);
         else if (state.schedule) root.SonoRenderSchedule.toXlsx();
       }
       catch (e) { console.error(e); alert('تعذّر التصدير: ' + (e.message || e)); }

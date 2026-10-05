@@ -145,14 +145,10 @@ function renderSummary(el, A, E, cmp) {
   const k = A.kpi;
   const fin = k.revenue > 0 || k.cost > 0;
   el.innerHTML = `
-    ${A.dupWarn ? `<div class="notice">
-      <h3>تنبيه: أكثر من تقرير يصف نفس الإيراد</h3>
-      <ul>
-        <li><span>—</span><div>رفعت ${A.dupWarn.length} تقارير فيها مبالغ إيراد:
-          <b>${A.dupWarn.map(esc).join('، ')}</b>.</div></li>
-        <li><span>—</span><div>هذه التقارير تصف <b>نفس الأموال من زوايا مختلفة</b>، فجمعها معاً يضاعف الإيراد ويجعل الأرقام أعلى من الحقيقة.</div></li>
-        <li><span>—</span><div>للحصول على رقم صحيح: ارفع <b>مصدر إيراد واحد</b> في المرة (تقرير الخزينة أو بيان الحالة أو كشف الحساب)، ومعه تقارير المصروفات والمرجعية.</div></li>
-      </ul></div>` : ''}
+    ${A.dupWarn ? `<div class="notice"><h3>منع احتساب نفس المبالغ أكثر من مرة</h3>
+      <p>استخدمنا المصدر الأعلى أولوية للفترات المتداخلة: الخزينة ثم الإيصالات وبيان الحالة للإيراد، وسندات المصروفات قبل تقارير الأتعاب للمصروفات. استُبعدت السطور المتداخلة من الجمع في التقارير التالية، مع إبقائها متاحة للتحليل التشغيلي:</p>
+      <ul>${A.dupWarn.map(name => `<li><div>${esc(name)}</div></li>`).join('')}</ul></div>` : ''}
+    ${A.periodExcluded && A.periodExcluded.length ? `<div class="notice"><h3>تقارير لم تدخل تحليل الفترة المحددة</h3><ul>${A.periodExcluded.map(name => `<li><div>${esc(name)}</div></li>`).join('')}</ul><p>ارفع تقريرًا بتاريخ لكل حركة أو اختر الفترة الكاملة للتقرير المجمّع.</p></div>` : ''}
     <div class="card">
       <div class="score">
         <div class="gauge" id="gg"></div>
@@ -412,7 +408,7 @@ function statusBlocks(S) {
         <ul>
           <li><span>—</span><div>تقرير بيان الحالة يغطي <b>${esc(S.periodMismatch.statusLabel)}</b> (${fmt(S.periodMismatch.statusDays)} يوم).</div></li>
           <li><span>—</span><div>تقرير الخزينة يغطي <b>${esc(S.periodMismatch.treasuryLabel)}</b> (${fmt(S.periodMismatch.treasuryDays)} يوم).</div></li>
-          <li><span>—</span><div>مقارنة أتعاب شهر بإيراد عدة شهور تعطي نسباً مضلِّلة، لذلك أوقفناها. ارفع التقريرين لنفس الفترة لتظهر ربحية كل طبيب.</div></li>
+          <li><span>—</span><div>لم تتطابق بداية ونهاية فترة الأتعاب مع فترة الإيراد، لذلك أوقفنا حساب الهامش والنسبة. ارفع التقريرين لنفس الفترة لتظهر ربحية كل طبيب.</div></li>
         </ul></div>`
       : S.matched ? '' : `<p class="note" style="margin-top:12px">
         لعرض ربحية كل طبيب، ارفع تقرير حركة الخزينة لنفس الفترة مع هذا الملف — عندها تُطابَق الأتعاب بالإيراد تلقائياً.</p>`}

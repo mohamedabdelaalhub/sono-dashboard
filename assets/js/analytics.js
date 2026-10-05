@@ -77,19 +77,19 @@ function analyze(income, expense, meta) {
 
   /* --- المرضى والإيصالات --- */
   const patKey = r => (r.fileNo && r.fileNo !== '0' ? 'F' + r.fileNo : 'N' + P.normAr(r.patient));
-  const rcptKey = r => r.receipt ? 'R' + r.receipt + '|' + r.date : 'X' + r.date + '|' + Math.random();
-  const receipts = uniq(income.filter(r => r.receipt).map(r => 'R' + r.receipt)).length || income.length;
+  const rcptKey = r => r.receipt ? JSON.stringify([r.date || '', r.branch || '', String(r.receipt)]) : null;
+  const receipts = uniq(income.map((r,i) => rcptKey(r) || 'row|' + i)).length;
   const patients = groupSum(income.filter(r => r.patient || r.fileNo), patKey, x => x.amount);
   const patientCount = patients.length;
   const visitsPerPatient = patientCount ? receipts / patientCount : 0;
-  const repeatPatients = patients.filter(p => uniq(p.items.map(i => i.receipt || i.date)).length > 1);
+  const repeatPatients = patients.filter(p => uniq(p.items.map(i => rcptKey(i) || i.date)).length > 1);
   const oneVisit = patientCount - repeatPatients.length;
 
   /* --- السلاسل اليومية --- */
   const dayMap = new Map();
   dates.forEach(d => dayMap.set(d, { date: d, rev: 0, exp: 0, rcpt: new Set(), pat: new Set() }));
   income.forEach(r => { const o = dayMap.get(r.date); if (!o) return;
-    o.rev += r.amount; if (r.receipt) o.rcpt.add(r.receipt); o.pat.add(patKey(r)); });
+    o.rev += r.amount; if (r.receipt) o.rcpt.add(rcptKey(r)); o.pat.add(patKey(r)); });
   expense.forEach(r => { const o = dayMap.get(r.date); if (o) o.exp += r.amount; });
   const daily = [...dayMap.values()].sort((a, b) => a.date.localeCompare(b.date))
     .map(o => {
@@ -225,7 +225,7 @@ function analyze(income, expense, meta) {
                              .sort((a, b) => b.amount - a.amount),
     topPatients: patients.slice(0, 15).map(p => ({
       name: p.items[0].patient || '—', file: p.items[0].fileNo || '—',
-      total: p.total, visits: uniq(p.items.map(i => i.receipt || i.date)).length
+      total: p.total, visits: uniq(p.items.map(i => rcptKey(i) || i.date)).length
     }))
   };
 }
@@ -237,19 +237,17 @@ function analyze(income, expense, meta) {
 function analyzeStatus(rows, doctorFees, periods) {
   if (!rows || !rows.length) return null;
 
-  /* لا تُطابَق الأتعاب بالإيراد إلا إذا غطّى التقريران الفترة نفسها تقريباً.
+  /* لا تُطابَق الأتعاب بالإيراد إلا إذا غطّى التقريران الفترة نفسها بالتواريخ.
      غير ذلك تكون النسب مضلِّلة (أتعاب شهر مقابل إيراد نصف سنة). */
   let mismatch = null;
-  if (periods && periods.status && periods.status.from && periods.status.to &&
-      periods.treasury && periods.treasury.from && periods.treasury.to) {
-    const days = (a, b) => Math.round((b - a) / 86400000) + 1;
-    const sDays = days(periods.status.from, periods.status.to);
-    const tDays = days(periods.treasury.from, periods.treasury.to);
-    const ratio = Math.max(sDays, tDays) / Math.max(Math.min(sDays, tDays), 1);
-    if (ratio > 1.3) mismatch = {
-      statusDays: sDays, treasuryDays: tDays,
-      statusLabel  : fmtDateAr(periods.status.from) + ' → ' + fmtDateAr(periods.status.to),
-      treasuryLabel: fmtDateAr(periods.treasury.from) + ' → ' + fmtDateAr(periods.treasury.to)
+  if (doctorFees && doctorFees.length) {
+    const s = periods && periods.status, t = periods && periods.treasury;
+    const valid = p => p && p.from && p.to && !isNaN(new Date(p.from)) && !isNaN(new Date(p.to));
+    const key = d => P.iso(new Date(d));
+    const days = p => valid(p) ? Math.round((new Date(p.to) - new Date(p.from)) / 86400000) + 1 : 0;
+    const label = p => valid(p) ? fmtDateAr(new Date(p.from)) + ' → ' + fmtDateAr(new Date(p.to)) : 'فترة غير محددة';
+    if (!valid(s) || !valid(t) || key(s.from) !== key(t.from) || key(s.to) !== key(t.to)) mismatch = {
+      statusDays: days(s), treasuryDays: days(t), statusLabel: label(s), treasuryLabel: label(t)
     };
   }
   if (mismatch) doctorFees = null;   /* أوقف المطابقة */

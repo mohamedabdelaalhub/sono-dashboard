@@ -270,13 +270,20 @@ const AD = {
    التشغيل على كل التقارير المرفوعة
    ============================================================ */
 function apply(datasets) {
-  const income = [], expense = [], used = [], skipped = [];
+  const income = [], expense = [], used = [], skipped = [], sources = [];
   (datasets || []).forEach(ds => {
     const f = AD[ds.id];
     if (!f) { skipped.push(ds.name); return; }
     try {
       const r = f(ds);
       if ((r.income && r.income.length) || (r.expense && r.expense.length)) {
+        const aggregate = !(ds.rows || []).some(row => row.date && P().parseDate(row.date));
+        if (aggregate) {
+          const period = { from: iso((ds.period || {}).from), to: iso((ds.period || {}).to) };
+          (r.income || []).concat(r.expense || []).forEach(row => row._aggregatePeriod = period);
+        }
+        sources.push({ kind: ds.id, name: ds.name + ' — ' + ds.file + (ds.sheet ? ' — ' + ds.sheet : ''),
+                       income: r.income || [], expense: r.expense || [], period: ds.period });
         income.push(...(r.income || []));
         expense.push(...(r.expense || []));
         used.push({ name: ds.name, file: ds.file,
@@ -284,7 +291,7 @@ function apply(datasets) {
       } else skipped.push(ds.name);
     } catch (e) { skipped.push(ds.name + ' (' + e.message + ')'); }
   });
-  return { income, expense, used, skipped };
+  return { income, expense, used, skipped, sources };
 }
 
 /* هل لهذا التقرير محوّل يغذّي التحليل؟ */
