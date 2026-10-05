@@ -67,7 +67,9 @@
       #branchCalcModal input[type=number]{direction:ltr;text-align:right;font-variant-numeric:tabular-nums}
       #branchCalcModal [data-total]{display:flex;align-items:center;min-height:44px;font-weight:700;font-variant-numeric:tabular-nums}
       #branchCalcModal .bc-empty{padding:18px;color:#65748a;margin:0;font-size:14px}
-      #branchCalcModal .bc-section-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:20px}
+      #branchCalcModal .bc-section-toolbar{flex-wrap:wrap;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:20px}
+      #branchCalcModal [hidden]{display:none!important}
+      #branchCalcModal .bc-count{font-size:12px;color:#526176;white-space:nowrap}
       #branchCalcModal .bc-section-toolbar h3{margin:0;font-size:17px}
       #branchCalcModal .bc-footer{flex-shrink:0;padding:16px 24px;background:#fff;border-top:1px solid #dce4ef;display:flex;align-items:center;justify-content:space-between;gap:16px}
       #branchCalcModal #branchCalcTotal{font-size:26px;font-weight:800;color:#0f369d;line-height:1.4;overflow-wrap:anywhere}
@@ -79,7 +81,7 @@
     </style><div class="mbox"><div class="mhead"><div style="flex:1"><h2 id="bcTitle">تكلفة إنشاء فرع جديد</h2><p class="bc-sub">نظّم مصروفات التأسيس واحسب تكلفة كل قسم</p></div><button type="button" class="btn ghost icon" id="branchCalcClose" aria-label="إغلاق">×</button></div><div class="mbody">
       <div class="bc-workspace"><div class="bc-panel"><label for="branchCalcName">اسم الفرع أو الدراسة</label><input id="branchCalcName" placeholder="مثال فرع الشيخ زايد"><div class="bc-actions"><button type="button" class="btn ghost" id="bcNew">دراسة جديدة</button></div></div>
       <div class="bc-panel"><label for="bcSaved">الدراسات المحفوظة</label><div class="bc-open-row"><select id="bcSaved"></select><button type="button" class="btn ghost" id="bcOpen">فتح</button></div><p class="bc-sub">الحفظ على هذا الجهاز والمتصفح. المسودة تُحفظ أثناء الكتابة.</p></div></div>
-      <div class="bc-section-toolbar"><h3>أقسام التأسيس</h3><button type="button" class="btn ghost" id="branchCalcAdd">إضافة قسم</button></div><div id="branchCalcRows"></div>
+      <div class="bc-section-toolbar"><h3>أقسام التأسيس</h3><div class="bc-actions" style="margin:0"><button type="button" class="btn ghost sm" id="bcCollapseAll">طي الكل</button><button type="button" class="btn ghost sm" id="bcExpandAll">فتح الكل</button><button type="button" class="btn ghost" id="branchCalcAdd">إضافة قسم</button></div></div><div id="branchCalcRows"></div>
     </div><div class="bc-footer"><div><span class="bc-sub">إجمالي تكلفة الفرع</span><div id="branchCalcTotal"></div><p id="bcStatus" role="status" aria-live="polite"></p></div><button type="button" class="btn" id="bcSave">حفظ الدراسة</button></div></div>`;
     document.body.appendChild(modal);
     const $ = s => modal.querySelector(s);
@@ -100,7 +102,7 @@
     }
     function render() {
       $('#branchCalcName').value = db.draft.name;
-      $('#branchCalcRows').innerHTML = db.draft.sections.map(s=>`<section class="bc-section" data-section="${s.id}"><div class="bc-heading"><input aria-label="اسم القسم" data-section-name value="${esc(s.name)}" style="flex:1"><b data-section-total="${s.id}"></b><button type="button" class="btn ghost sm" data-add>إضافة بند تفصيلي</button><button type="button" class="btn ghost sm" data-delete-section>حذف القسم</button></div>${s.items.length ? '' : '<p class="bc-empty">أضف بنود هذا القسم وحدّد الكمية وتكلفة الوحدة لكل بند.</p>'}${s.items.map(r=>`<div class="bc-row" data-item="${r.id}"><label class="bc-item-name">البند التفصيلي<input data-k="name" value="${esc(r.name)}" placeholder="اسم البند"></label><label>الكمية<input data-k="qty" type="number" min="0" step="any" value="${num(r.qty)}"></label><label>تكلفة الوحدة<input data-k="unit" type="number" min="0" step="any" value="${num(r.unit)}"></label><div data-total aria-label="إجمالي البند">${money(num(r.qty)*num(r.unit))}</div><button type="button" class="btn ghost sm" data-delete-item>حذف</button></div>`).join('')}</section>`).join('');
+      $('#branchCalcRows').innerHTML = db.draft.sections.map(s=>`<section class="bc-section" data-section="${s.id}"><div class="bc-heading"><input aria-label="اسم القسم" data-section-name value="${esc(s.name)}" style="flex:1"><span class="bc-count">${s.items.length} بند</span><b data-section-total="${s.id}"></b><button type="button" class="btn ghost sm" data-toggle aria-expanded="${!s.collapsed}" aria-controls="bc-items-${s.id}">${s.collapsed ? 'فتح التفاصيل' : 'طي التفاصيل'}</button><button type="button" class="btn ghost sm" data-add>إضافة بند تفصيلي</button><button type="button" class="btn ghost sm" data-delete-section>حذف القسم</button></div><div id="bc-items-${s.id}" ${s.collapsed ? 'hidden' : ''}>${s.items.length ? '' : '<p class="bc-empty">أضف بنود هذا القسم وحدّد الكمية وتكلفة الوحدة لكل بند.</p>'}${s.items.map(r=>`<div class="bc-row" data-item="${r.id}"><label class="bc-item-name">البند التفصيلي<input data-k="name" value="${esc(r.name)}" placeholder="اسم البند"></label><label>الكمية<input data-k="qty" type="number" min="0" step="any" value="${num(r.qty)}"></label><label>تكلفة الوحدة<input data-k="unit" type="number" min="0" step="any" value="${num(r.unit)}"></label><div data-total aria-label="إجمالي البند">${money(num(r.qty)*num(r.unit))}</div><button type="button" class="btn ghost sm" data-delete-item>حذف</button></div>`).join('')}</div></section>`).join('');
       totals();list();
     }
     $('#branchCalcName').oninput = e => {db.draft.name=e.target.value;persist();};
@@ -113,13 +115,16 @@
     });
     $('#branchCalcRows').addEventListener('click', e=>{
       const el=e.target.closest('[data-section]');if(!el)return;const s=db.draft.sections.find(s=>s.id===el.dataset.section);
-      if(e.target.closest('[data-add]'))s.items.push(item());
+      if(e.target.closest('[data-toggle]')){s.collapsed=!s.collapsed;const panel=el.querySelector('#bc-items-'+s.id),toggle=el.querySelector('[data-toggle]');panel.hidden=!!s.collapsed;toggle.setAttribute('aria-expanded',String(!s.collapsed));toggle.textContent=s.collapsed?'فتح التفاصيل':'طي التفاصيل';persist();return;}
+      if(e.target.closest('[data-add]')){s.collapsed=false;s.items.push(item());}
       else if(e.target.closest('[data-delete-item]')){const row=e.target.closest('[data-item]');s.items=s.items.filter(r=>r.id!==row.dataset.item);}
       else if(e.target.closest('[data-delete-section]')){if(!confirm('حذف القسم وكل بنوده؟'))return;db.draft.sections=db.draft.sections.filter(x=>x.id!==s.id);}
       else return;
       render();persist();
       if(e.target.closest('[data-add]')){const inputs=modal.querySelectorAll(`[data-section="${s.id}"] [data-k="name"]`);inputs[inputs.length-1]?.focus();}
     });
+    $('#bcCollapseAll').onclick=()=>{db.draft.sections.forEach(s=>s.collapsed=true);render();persist();};
+    $('#bcExpandAll').onclick=()=>{db.draft.sections.forEach(s=>s.collapsed=false);render();persist();};
     $('#branchCalcAdd').onclick=()=>{db.draft.sections.push({id:id(),name:'قسم جديد',items:[]});render();persist();};
     $('#bcSave').onclick=()=>{
       if(!db.draft.name.trim()){status('اكتب اسم الفرع أو الدراسة قبل الحفظ.');$('#branchCalcName').focus();return;}
@@ -132,7 +137,7 @@
     $('#bcOpen').onclick=()=>{const s=db.studies.find(s=>s.id===$('#bcSaved').value);if(!s){status('اختر دراسة لفتحها.');return;}if(!confirm('فتح النسخة المحفوظة؟ اضغط حفظ الدراسة أولاً إذا أردت الاحتفاظ بتعديلات المسودة الحالية.'))return;db.draft=copy(s);render();persist('تم فتح الدراسة ويمكنك تعديلها');};
     const close=()=>{modal.classList.add('hide');document.body.style.overflow=previousOverflow;btn.focus();};let previousOverflow='';$('#branchCalcClose').onclick=close;
     modal.addEventListener('click',e=>{if(e.target===modal)close();});
-    modal.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();close();}if(e.key==='Tab'){const focusable=Array.from(modal.querySelectorAll('button,input,select')).filter(el=>!el.disabled);const first=focusable[0],last=focusable[focusable.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}});
+    modal.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();close();}if(e.key==='Tab'){const focusable=Array.from(modal.querySelectorAll('button,input,select')).filter(el=>!el.disabled&&!el.closest('[hidden]'));const first=focusable[0],last=focusable[focusable.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}});
     btn.onclick=()=>{render();previousOverflow=document.body.style.overflow;document.body.style.overflow='hidden';modal.classList.remove('hide');$('#branchCalcName').focus();};render();if(readError)status('تعذر قراءة البيانات المحفوظة. لم يتم استبدالها.');
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount);else mount();
