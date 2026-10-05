@@ -364,6 +364,7 @@ function initUpload() {
 }
 
 function clearAll() {
+  analysisEpoch++;analysisCache.clear();busy(false);
   state.files = []; state.income = []; state.expense = []; state.status = []; state.datasets = [];
   state.adapted = null; state.activeDatasets = null; state.periodExcluded = []; state.ins = null; state.E = null; state.cmp = null;
   state.metaCampaigns = null; state.bankWithdrawals = null; state.metaInvoice = null;
@@ -412,89 +413,36 @@ async function handleFiles(list) {
         } catch (e) { warnings.push(e.message); }
         continue;
       }
-      const wb = XLSX.read(buf, { type: 'array', cellDates: true, raw: true });
-
-      /* ملفات تاب «التسويق والعائد» — منفصلة تماماً عن تقارير العيادة.
-         تُقرأ كنص UTF-8 صريح لتفادي مشاكل ترميز الحروف العربية داخل CSV. */
-      if (/\.csv$/i.test(f.name) && root.SonoMetaParser) {
-        let wbUtf = null;
-        try {
-          const text = new TextDecoder('utf-8').decode(buf).replace(/^﻿/, '');
-          wbUtf = XLSX.read(text, { type: 'string', raw: true, cellDates: true });
-        } catch (e) { wbUtf = wb; }
-
-        const camp = root.SonoMetaParser.parseCampaigns(wbUtf, f.name);
-        if (camp) {
-          state.metaCampaigns = camp;
-          state.files.push({ name: f.name, kind: 'report', reportId: 'metaCampaigns',
-                             reportName: 'حملات Meta Ads', income: [], expense: [], status: [], rows: camp.rows.length });
-          continue;
-        }
-        const inv = root.SonoMetaParser.parseInvoice(wbUtf, f.name);
-        if (inv) {
-          state.metaInvoice = inv;
-          state.files.push({ name: f.name, kind: 'report', reportId: 'metaInvoice',
-                             reportName: 'فاتورة Meta الرسمية', income: [], expense: [], status: [], rows: inv.rows.length });
-          continue;
-        }
-        const bnk = root.SonoMetaParser.parseBankWithdrawals(wbUtf, f.name, 2026);
-        if (bnk) {
-          state.bankWithdrawals = bnk;
-          state.files.push({ name: f.name, kind: 'report', reportId: 'bankWithdrawals',
-                             reportName: 'كشف سحوبات إعلانات', income: [], expense: [], status: [], rows: bnk.rows.length });
-          continue;
-        }
-      }
-
-      /* ١) هل هو «تقرير بيان الحالة المجمع»؟ */
-      /* ٠) جدول العيادات — ملف إداري مرجعي */
-      const scd = root.SonoSchedule ? root.SonoSchedule.parse(wb, f.name) : null;
-      if (scd) {
-        state.schedule = scd;
-        state.files.push({ name: f.name, kind: 'schedule', reportName: 'جدول العيادات',
-                           income: [], expense: [], status: [], rows: scd.doctors.length });
+      const parsed=await root.SonoCompute.run('parseReport',{buffer:buf,fileName:f.name});
+      if(['metaCampaigns','metaInvoice','bankWithdrawals'].includes(parsed.kind)){
+        const names={metaCampaigns:'حملات Meta Ads',metaInvoice:'فاتورة Meta الرسمية',bankWithdrawals:'كشف سحوبات إعلانات'};
+        state[parsed.kind]=parsed.data;
+        state.files.push({name:f.name,kind:'report',reportId:parsed.kind,reportName:names[parsed.kind],income:[],expense:[],status:[],rows:parsed.data.rows.length});
         continue;
       }
-
-      const st = root.SonoStatusParser ? root.SonoStatusParser.parse(wb, f.name) : null;
-      if (st && st.rows.length) {
-        st.warnings.forEach(w => warnings.push(f.name + ': ' + w));
-        /* نفس الملف يُقرأ أيضاً بالمحرك العام: منه يأتي الإيراد والتحليل التشغيلي،
-           بينما تتولّى قراءة «بيان الحالة» تحليل هامش الأطباء.
-           الملف قد يحتوي أكثر من شيت مطابق — نقرأها كلها لا أول واحد فقط. */
-        const auAllSt = root.SonoAuto ? root.SonoAuto.parseAll(wb, f.name) : [];
-        auAllSt.forEach(d => state.datasets.push(d));
-        const auSt = auAllSt[0] || null;
-        state.files.push({ name: f.name, kind: 'status', income: [], expense: [],
-                           status: st.rows, period: st.period, sourceFile: f.name, sourceSheet: auSt && auSt.sheet,
-                           reportId: auSt ? auSt.id : '', reportName: auSt ? auSt.name : '',
-                           rows: auSt ? auSt.rows.length : st.rows.length });
-        /* شيتات إضافية مطابقة داخل نفس الملف — شريحة لكل واحدة */
-        auAllSt.slice(1).forEach(d => {
-          state.files.push({ name: `${f.name} — ${d.sheet}`, sourceFile: f.name, sourceSheet: d.sheet, kind: 'report', reportId: d.id,
-                             reportName: d.name, income: [], expense: [], status: [], rows: d.rows.length });
-        });
+      if(parsed.kind==='schedule'){
+        state.schedule=parsed.data;
+        state.files.push({name:f.name,kind:'schedule',reportName:'جدول العيادات',income:[],expense:[],status:[],rows:parsed.data.doctors.length});
         continue;
       }
-
-      /* ٢) أي تقرير معروف من نظام المركز (يتجاهل ملفات الخزينة تلقائياً)
-         — نقرأ كل الشيتات المطابقة داخل نفس الملف، لا أول شيت بس */
-      const auAll = root.SonoAuto ? root.SonoAuto.parseAll(wb, f.name) : [];
-      if (auAll.length) {
-        auAll.forEach((au, i) => {
-          state.datasets.push(au);
-          state.files.push({ name: i === 0 ? f.name : `${f.name} — ${au.sheet}`, sourceFile: f.name, sourceSheet: au.sheet, kind: 'report',
-                             reportId: au.id, reportName: au.name,
-                             income: [], expense: [], status: [], rows: au.rows.length });
-        });
+      const datasets=parsed.datasets||[];
+      if(parsed.kind==='status'){
+        const st=parsed.data,first=datasets[0]||null;
+        (st.warnings||[]).forEach(w=>warnings.push(f.name+': '+w));
+        state.datasets.push(...datasets);
+        state.files.push({name:f.name,kind:'status',income:[],expense:[],status:st.rows,period:st.period,sourceFile:f.name,sourceSheet:first&&first.sheet,
+          reportId:first?first.id:'',reportName:first?first.name:'',rows:first?first.rows.length:st.rows.length});
+        datasets.slice(1).forEach(ds=>state.files.push({name:f.name+' — '+ds.sheet,kind:'report',sourceFile:f.name,sourceSheet:ds.sheet,reportId:ds.id,reportName:ds.name,income:[],expense:[],status:[],rows:ds.rows.length}));
         continue;
       }
-
-      /* ٣) تقرير حركة خزينة */
-      const r = P.parseWorkbook(wb, f.name);
-      if (r.income.length || r.expense.length) {
-        r.warnings.forEach(w => warnings.push(f.name + ': ' + w));
-        state.files.push({ name: f.name, kind: 'treasury', income: r.income, expense: r.expense, status: [] });
+      if(parsed.kind==='report'){
+        state.datasets.push(...datasets);
+        datasets.forEach((ds,i)=>state.files.push({name:i===0?f.name:f.name+' — '+ds.sheet,sourceFile:f.name,sourceSheet:ds.sheet,kind:'report',reportId:ds.id,reportName:ds.name,income:[],expense:[],status:[],rows:ds.rows.length}));
+        continue;
+      }
+      if(parsed.kind==='treasury'){
+        const r=parsed.data;(r.warnings||[]).forEach(w=>warnings.push(f.name+': '+w));
+        state.files.push({name:f.name,kind:'treasury',income:r.income,expense:r.expense,status:[],period:r.period});
         continue;
       }
 
@@ -514,10 +462,14 @@ async function handleFiles(list) {
 
 function renderChips() {
   $('fileChips').innerHTML = state.files.map((f, i) => `
-    <span class="chip">${f.name} · ${f.kind === 'report' ? f.reportName : f.kind === 'status' ? 'بيان حالة' : 'خزينة'}${f.src === 'pdf' ? ' · PDF' : ''} · ${(f.income.length + f.expense.length) || (f.status || []).length || f.rows || 0} سطر
+    <span class="chip">${escHtml(f.name)} · ${f.kind === 'report' ? f.reportName : f.kind === 'status' ? 'بيان حالة' : 'خزينة'}${f.src === 'pdf' ? ' · PDF' : ''} · ${(f.income.length + f.expense.length) || (f.status || []).length || f.rows || 0} سطر
       <button data-i="${i}" title="إزالة">×</button></span>`).join('');
   $('fileChips').querySelectorAll('button').forEach(b => b.onclick = () => {
     const removed = state.files.splice(+b.dataset.i, 1)[0];
+    if(removed.reportId==='metaCampaigns')state.metaCampaigns=null;
+    if(removed.reportId==='metaInvoice')state.metaInvoice=null;
+    if(removed.reportId==='bankWithdrawals')state.bankWithdrawals=null;
+    if(removed.kind==='schedule'){state.schedule=null;refreshScheduleTab();}
     const base = removed.sourceFile || removed.name;
     state.datasets = state.datasets.filter(ds => !(ds.file === base && (!removed.sourceSheet || ds.sheet === removed.sourceSheet)));
     if (removed.kind === 'status') {
@@ -529,6 +481,7 @@ function renderChips() {
 }
 
 function mergeAll() {
+  analysisCache.clear();analysisEpoch++;
   state.adapted = root.SonoAdapters.apply(state.datasets);
   const sources = state.files.filter(f => (f.income || []).length || (f.expense || []).length)
     .map(f => ({kind: f.kind, name: f.name, income: f.income, expense: f.expense, period: f.period}));
@@ -631,39 +584,47 @@ function currentSlice() {
   return { cur, prev, label: AN.periodLabel(key), prevLabel: idx > 0 ? AN.periodLabel(ps[idx - 1]) : null };
 }
 
+const analysisCache = new Map();
+let analysisEpoch=0;
 function applyPeriod() {
   if (!state.income.length && !state.expense.length && !(state.status || []).length
       && !((state.ins || {}).has)) return;
   busy(true, 'جارٍ التحليل…');
-  setTimeout(() => {
+  const epoch=++analysisEpoch;
+  setTimeout(async () => {
     try {
       state.C = null; state.cSources = null;
       const s = currentSlice();
-      state.A = AN.analyze(s.cur.income, s.cur.expense, { label: s.label });
-      const selected = selectedRange(), operational = operationalSlice(selected), status = statusSlice(selected);
-      state.activeDatasets = operational.datasets;
-      state.periodExcluded = operational.excluded;
-      state.ins = root.SonoInsights.build(state.activeDatasets, {doctorRevenue: doctorRevenueMap(state.activeDatasets)});
-      state.A.periodExcluded = state.periodExcluded;
-      state.statusPeriod = status.period;
-      state.A.status = AN.analyzeStatus(status.rows, state.A.doctors, {
-        status: status.period, treasury: feePeriod(s.cur.expense, selected)
-      });
-      if (state.A.status && !state.A.meta.from && state.statusPeriod) {
-        state.A.meta.from = state.statusPeriod.from || null;
-        state.A.meta.to   = state.statusPeriod.to || null;
-        if (state.A.meta.from && state.A.meta.to)
-          state.A.meta.rangeLabel = AN.fmtDateAr(state.A.meta.from) + ' → ' + AN.fmtDateAr(state.A.meta.to);
+      const selected=selectedRange(),operational=operationalSlice(selected),status=statusSlice(selected);
+      const key=JSON.stringify([$('gran').value,$('period').value,$('dFrom').value,$('dTo').value]);
+      let result=analysisCache.get(key);
+      if(!result){
+        result=await root.SonoCompute.run('analyze',{
+          cur:s.cur,prev:s.prev,label:s.label,datasets:operational.datasets,
+          doctorRevenue:doctorRevenueMap(operational.datasets),periodExcluded:operational.excluded,
+          statusRows:status.rows,statusPeriod:status.period,
+          periods:{status:status.period,treasury:feePeriod(s.cur.expense,selected)}
+        });
+        if(epoch!==analysisEpoch)return;
+        if(analysisCache.size>=4)analysisCache.delete(analysisCache.keys().next().value);
+        analysisCache.set(key,result);
       }
-      const prevA = s.prev ? AN.analyze(s.prev.income, s.prev.expense, {}) : null;
-      state.cmp = (state.A.kpi.revenue > 0 || state.A.kpi.cost > 0) ? AN.compare(state.A, prevA) : null;
-      delete RENDERED.rep;
-      state.A.ins = state.ins || { has: false, modules: [], risks: [], recos: [], plan: [], blocks: [], names: [] };
-      state.E = RU.evaluate(state.A, state.cmp);
+      if(epoch!==analysisEpoch)return;
+      state.A=result.A;state.E=result.E;state.ins=result.ins;state.cmp=result.cmp;
+      state.activeDatasets=operational.datasets;state.periodExcluded=operational.excluded;state.statusPeriod=status.period;
+      state.archived=null;
+      Object.keys(RENDERED).forEach(k=>delete RENDERED[k]);
       $('cmpLbl').textContent = s.prevLabel ? 'مقابل ' + s.prevLabel
         : (s.prev ? 'مقابل الفترة السابقة' : 'لا توجد فترة سابقة للمقارنة');
       state.A.dupWarn = state.dupWarn;
-      state.A.financialSources = state.sourceSelection.used;
+      const usedSources=new Map();
+      ['income','expense'].forEach(side=>s.cur[side].forEach(r=>{
+        const key=side+'|'+r._financialSource;
+        if(!usedSources.has(key))usedSources.set(key,{name:r._financialSource||'مصدر غير محدد',side,count:0,total:0});
+        const source=usedSources.get(key);source.count++;source.total+=r.amount;
+      }));
+      state.A.financialSources=[...usedSources.values()];
+      state.A.excludedSources=state.sourceSelection.excluded;
       setRiskBadge(state.E.risks.length, state.E.risks.some(r => r.sev === 'high' || r.sev === 'critical'));
       $('cRec').textContent  = state.E.recos.length;
       $('cPlan').textContent = state.E.plan.length;
@@ -671,9 +632,10 @@ function applyPeriod() {
       ['btnXlsx', 'btnPdf', 'btnPrint'].forEach(b => $(b).disabled = !RO.can(u, 'export'));
       renderTab(state.tab, true);
     } catch (e) {
+      if(epoch!==analysisEpoch)return;
       console.error(e);
       alert('تعذّر تحليل البيانات: ' + (e.message || e));
-    } finally { busy(false); }
+    } finally { if(epoch===analysisEpoch)busy(false); }
   }, 30);
 }
 
@@ -681,15 +643,8 @@ function applyPeriod() {
 function doctorRevenueMap(datasets) {
   const m = {};
   const add = (d, v) => { const k = String(d || '').trim(); if (!k || !isFinite(v)) return; m[k] = (m[k] || 0) + v; };
-  const F = { statusDetail: 'total', statusSummary: 'net', receipts: 'amount',
-              doctorLaser: 'collected', patientBalance: 'amount', doctorClaim: 'svcValue' };
   const available = datasets || state.datasets;
-  const primary = ['statusDetail', 'receipts', 'statusSummary', 'doctorLaser', 'patientBalance', 'doctorClaim'].find(id => available.some(ds => ds.id === id && ds.rows.some(r => r.doctor)));
-  available.filter(ds => ds.id === primary).forEach(ds => {
-    const f = F[ds.id];
-    if (!f) return;
-    (ds.rows || []).forEach(r => add(r.doctor, +r[f] || 0));
-  });
+  root.SonoDataIntegrity.doctorRevenueRows(available).forEach(({row,amount})=>add(row.doctor,amount));
   return m;
 }
 
@@ -762,9 +717,7 @@ function rebuild() {
   if (!state.dupWarn.length) state.dupWarn = null;
 
   /* التحليلات التشغيلية: محلّل مخصّص لكل نوع تقرير */
-  state.ins = root.SonoInsights
-    ? root.SonoInsights.build(state.datasets, { doctorRevenue: doctorRevenueMap() })
-    : { modules: [], risks: [], recos: [], plan: [], blocks: [], names: [], has: false };
+  state.ins = {has: state.datasets.length > 0};
 
   /* جدول عيادات فقط بلا أي تقرير آخر */
   if (!hasDs && !state.income.length && !state.expense.length && !state.status.length
@@ -772,6 +725,7 @@ function rebuild() {
     $('welcome').classList.add('hide');
     $('toolbar').classList.add('hide');
     $('tabs').classList.remove('hide');
+    state.A=null;state.E=null;state.cmp=null;state.activeDatasets=[];
     renderTab('sch');
     return;
   }
@@ -945,6 +899,10 @@ function archiveHandlers() {
         const r = await root.SonoArchive.load(id);
         if (r.comparison) { showComparison(r.comparison, r.sources, r.title); return; }
         state.C = null; state.cSources = null;
+        analysisEpoch++;analysisCache.clear();
+        state.files=[];state.datasets=[];state.activeDatasets=[];state.income=[];state.expense=[];state.status=[];
+        state.ins=r.A.ins;state.metaCampaigns=null;state.metaInvoice=null;state.bankWithdrawals=null;
+        renderChips();$('tabRep').classList.add('hide');$('cRep').textContent='0';
         state.A = r.A; state.E = r.E; state.cmp = r.cmp;
         state.archived = r.title;
         setRiskBadge(r.E.risks.length, r.E.risks.some(x => x.sev === 'high' || x.sev === 'critical'));

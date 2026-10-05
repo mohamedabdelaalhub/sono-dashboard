@@ -11,7 +11,12 @@ const AU = () => root.SonoAuth, RO = () => root.SonoRoles;
 function buildPayload(A, E, cmp, files) {
   const clone = o => JSON.parse(JSON.stringify(o === undefined ? null : o));
   return {
-    v: 1,
+    v: 2,
+    ins: root.SonoPrivacy.insights(A.ins),
+    financialSources: clone(A.financialSources || []),
+    excludedSources: clone(A.excludedSources || []),
+    dupWarn: clone(A.dupWarn),
+    periodExcluded: clone(A.periodExcluded || []),
     meta: {
       rangeLabel: A.meta.rangeLabel,
       spanDays  : A.meta.spanDays,
@@ -57,6 +62,7 @@ function restorePayload(p) {
       from: p.meta.from ? new Date(p.meta.from) : null,
       to  : p.meta.to   ? new Date(p.meta.to)   : null
     },
+    ins: root.SonoPrivacy.insights(p.ins), financialSources: p.financialSources || [], excludedSources: p.excludedSources || [], dupWarn: p.dupWarn || null, periodExcluded: p.periodExcluded || [],
     kpi: p.kpi, daily: p.daily || [], weekly: p.weekly || [], dowAgg: p.dowAgg || [],
     methods: p.methods || [], services: p.services || [], serviceCats: p.serviceCats || [],
     top5Services: (p.services || []).slice(0, 5),
@@ -107,6 +113,7 @@ async function list() {
   if (AU().mode() !== 'supabase' || !sb) return [];
   const { data, error } = await sb.from('reports')
     .select('id,title,period_from,period_to,files,revenue,cost,net,score,risk_count,created_name,created_at')
+    .or('payload->>kind.is.null,payload->>kind.neq.branch-study')
     .order('created_at', { ascending: false }).limit(200);
   if (error) throw new Error(dbErr(error.message));
   return data || [];

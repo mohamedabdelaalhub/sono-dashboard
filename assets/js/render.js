@@ -60,7 +60,7 @@ function insHtml(A, opts) {
           ${c.note ? `<div class="note">${esc(c.note)}</div>` : ''}
           <div id="ins${i}_${j}"></div></div>`).join('')}</div>` : ''}
       ${tbs.map((t, ti) => {
-        const errTbl = m.id === 'bookings' && /تصنيف المستخدمين/.test(t.title);
+        const errTbl = !!m.userErrorDetails && m.id === 'bookings' && /تصنيف المستخدمين/.test(t.title);
         return `
         <div class="card"><h2>${esc(t.title)}</h2>
           ${t.note ? `<div class="note">${esc(t.note)}</div>` : ''}
@@ -129,7 +129,7 @@ function insDraw(A) {
           <button class="btn ghost icon" id="errDetailClose" title="إغلاق">×</button></div>
         <div class="mbody"><div class="tscroll"><table>
           <thead><tr><th>المريض</th><th>الطبيب</th><th>نوع الخطأ</th></tr></thead>
-          <tbody>${items.map(it => `<tr><td>${esc(it.patient)}</td><td>${esc(it.doctor)}</td><td>${esc(it.reason)}</td></tr>`).join('')}</tbody>
+          <tbody>${items.map(it => `<tr><td>بيانات المريض محجوبة</td><td>${esc(it.doctor)}</td><td>${esc(it.reason)}</td></tr>`).join('')}</tbody>
         </table></div></div></div>`;
       document.body.appendChild(box);
       box.addEventListener('click', ev => { if (ev.target === box) box.remove(); });
@@ -149,6 +149,7 @@ function renderSummary(el, A, E, cmp) {
       <p>استخدمنا المصدر الأعلى أولوية للفترات المتداخلة: الخزينة ثم الإيصالات وبيان الحالة للإيراد، وسندات المصروفات قبل تقارير الأتعاب للمصروفات. استُبعدت السطور المتداخلة من الجمع في التقارير التالية، مع إبقائها متاحة للتحليل التشغيلي:</p>
       <ul>${A.dupWarn.map(name => `<li><div>${esc(name)}</div></li>`).join('')}</ul></div>` : ''}
     ${A.periodExcluded && A.periodExcluded.length ? `<div class="notice"><h3>تقارير لم تدخل تحليل الفترة المحددة</h3><ul>${A.periodExcluded.map(name => `<li><div>${esc(name)}</div></li>`).join('')}</ul><p>ارفع تقريرًا بتاريخ لكل حركة أو اختر الفترة الكاملة للتقرير المجمّع.</p></div>` : ''}
+    ${(A.financialSources||[]).length ? `<details class="card"><summary>مصادر الإجماليات في الفترة المختارة</summary><div class="tscroll"><table><thead><tr><th>المصدر</th><th>نوع الحركة</th><th>السطور المستخدمة</th><th>الإجمالي</th></tr></thead><tbody>${A.financialSources.map(s=>`<tr><td>${esc(s.name)}</td><td>${s.side==='income'?'إيراد':'مصروف'}</td><td>${fmt(s.count)}</td><td>${eg(s.total||0)}</td></tr>`).join('')}</tbody></table></div>${(A.excludedSources||[]).length?`<p>استبعدنا السطور المتكررة أو التي تغطيها مصادر أخرى من إجمالي الملفات المرفوعة.</p><ul>${A.excludedSources.map(s=>`<li>${esc(s.name)} — ${s.side==='income'?'إيراد':'مصروف'} — ${fmt(s.count)} سطر</li>`).join('')}</ul>`:''}</details>`:''}
     <div class="card">
       <div class="score">
         <div class="gauge" id="gg"></div>
@@ -690,21 +691,12 @@ function renderData(el, A, E, raw) {
       <div class="note">${A.unclassifiedRows.length} حركة بإجمالي ${eg(A.unclassifiedRows.reduce((s, r) => s + r.amount, 0))} — راجعها قبل إقفال الشهر</div>
       <div class="tscroll" style="max-height:320px;overflow-y:auto"><table>
         <thead><tr><th>التاريخ</th><th>البيان</th><th>الملاحظات</th><th>المبلغ</th></tr></thead>
-        <tbody>${A.unclassifiedRows.map(r => `<tr><td class="n">${esc(r.date)}</td><td>${esc(r.bayan)}</td>
-          <td style="color:var(--muted);font-size:12px">${esc(r.note || '—')}</td><td class="n">${fmt(r.amount)}</td></tr>`).join('')}</tbody>
+        <tbody>${A.unclassifiedRows.map(r => `<tr><td class="n">${esc(r.date)}</td><td>حركة غير مصنفة</td>
+          <td style="color:var(--muted);font-size:12px">—</td><td class="n">${fmt(r.amount)}</td></tr>`).join('')}</tbody>
       </table></div>
     </div>` : ''}
 
-    <div class="card">
-      <h2>أعلى 15 مريضاً بالإيراد</h2>
-      <div class="note">${A.archived
-        ? 'أسماء المرضى لا تُحفظ في الأرشيف إطلاقاً — ارفع ملف الفترة لعرضها.'
-        : 'تُعرض الأسماء للمراجعة الإدارية فقط — لا تُصدَّر في تقرير PDF العام'}</div>
-      <div class="tscroll"><table>
-        <thead><tr><th>المريض</th><th>رقم الملف</th><th>الزيارات</th><th>الإيراد</th></tr></thead>
-        <tbody>${A.topPatients.map(p => `<tr><td>${esc(p.name)}</td><td class="n">${esc(p.file)}</td>
-          <td class="n">${p.visits}</td><td class="n">${fmt(p.total)}</td></tr>`).join('')}</tbody>
-      </table></div>
+    <div class="card"><h2>مؤشرات المرضى</h2><p>عدد المرضى ${fmt(A.kpi.patients)} · عدد الإيصالات ${fmt(A.kpi.receipts)} · نسبة تكرار الزيارة ${pc(A.kpi.repeatRate)}</p><p class="note">تعرض اللوحة المؤشرات دون أسماء أو أرقام ملفات.</p>
     </div>`;
 }
 

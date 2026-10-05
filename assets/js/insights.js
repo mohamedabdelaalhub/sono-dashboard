@@ -1714,6 +1714,7 @@ function emptyModule(name, what, gaps, area) {
    البناء العام
    ============================================================ */
 function build(datasets, ctx) {
+  datasets = root.SonoPrivacy ? root.SonoPrivacy.forAnalysis(datasets) : datasets;
   const out = { modules: [], risks: [], recos: [], plan: [], kpis: [], blocks: [], names: [] };
   (datasets || []).forEach(ds => {
     const fn = A[ds.id];

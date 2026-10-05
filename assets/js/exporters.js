@@ -140,7 +140,7 @@ function toXlsx(A, E, ctx, datasets) {
   /* 12) حركات تحتاج تصنيف */
   if (fin && A.unclassifiedRows.length) add('تحتاج تصنيف', [
     ['التاريخ', 'البيان', 'الملاحظات', 'المبلغ'],
-    ...A.unclassifiedRows.map(r => [r.date, r.bayan, r.note, r0(r.amount)])
+    ...A.unclassifiedRows.map(r => [r.date, 'حركة غير مصنفة', '', r0(r.amount)])
   ], [13, 34, 44, 12]);
 
   /* شيتات التحليل التشغيلي لكل تقرير */
@@ -187,7 +187,7 @@ function addDatasetSheets(wb, datasets, add) {
   const used = new Set(wb.SheetNames.map(n => n));
   (datasets || []).forEach((ds, i) => {
     if (!ds.rows || !ds.rows.length) return;
-    const cols = ds.columns.filter(c => c !== '_row');
+    const cols = root.SonoPrivacy.columns(ds.columns);
     let nm = ds.name.slice(0, 28);
     let k = 1; while (used.has(nm)) nm = ds.name.slice(0, 25) + ' ' + (++k);
     used.add(nm);

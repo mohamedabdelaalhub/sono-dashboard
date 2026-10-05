@@ -80,13 +80,16 @@
       @media(prefers-reduced-motion:reduce){#branchCalcModal *{scroll-behavior:auto}}
     </style><div class="mbox"><div class="mhead"><div style="flex:1"><h2 id="bcTitle">تكلفة إنشاء فرع جديد</h2><p class="bc-sub">نظّم مصروفات التأسيس واحسب تكلفة كل قسم</p></div><button type="button" class="btn ghost icon" id="branchCalcClose" aria-label="إغلاق">×</button></div><div class="mbody">
       <div class="bc-workspace"><div class="bc-panel"><label for="branchCalcName">اسم الفرع أو الدراسة</label><input id="branchCalcName" placeholder="مثال فرع الشيخ زايد"><div class="bc-actions"><button type="button" class="btn ghost" id="bcNew">دراسة جديدة</button></div></div>
-      <div class="bc-panel"><label for="bcSaved">الدراسات المحفوظة</label><div class="bc-open-row"><select id="bcSaved"></select><button type="button" class="btn ghost" id="bcOpen">فتح</button></div><p class="bc-sub">الحفظ على هذا الجهاز والمتصفح. المسودة تُحفظ أثناء الكتابة.</p></div></div>
+      <div class="bc-panel"><label for="bcSaved">الدراسات المحفوظة</label><div class="bc-open-row"><select id="bcSaved"></select><button type="button" class="btn ghost" id="bcOpen">فتح</button></div><div class="bc-actions"><button type="button" class="btn ghost sm" id="bcSync">مزامنة الحساب</button><button type="button" class="btn ghost sm" id="bcBackup">تنزيل نسخة احتياطية</button><button type="button" class="btn ghost sm" id="bcImport">استعادة نسخة</button><input type="file" id="bcImportFile" accept="application/json,.json" hidden></div><p class="bc-sub">المسودة تُحفظ على الجهاز أثناء الكتابة. زر حفظ الدراسة يحفظ نسخة على الحساب عند الاتصال.</p></div></div>
       <div class="bc-section-toolbar"><h3>أقسام التأسيس</h3><div class="bc-actions" style="margin:0"><button type="button" class="btn ghost sm" id="bcCollapseAll">طي الكل</button><button type="button" class="btn ghost sm" id="bcExpandAll">فتح الكل</button><button type="button" class="btn ghost" id="branchCalcAdd">إضافة قسم</button></div></div><div id="branchCalcRows"></div>
     </div><div class="bc-footer"><div><span class="bc-sub">إجمالي تكلفة الفرع</span><div id="branchCalcTotal"></div><p id="bcStatus" role="status" aria-live="polite"></p></div><button type="button" class="btn" id="bcSave">حفظ الدراسة</button></div></div>`;
     document.body.appendChild(modal);
     const $ = s => modal.querySelector(s);
     const status = text => $('#bcStatus').textContent = text;
+    let saveTimer=null;
+    function queuePersist(){clearTimeout(saveTimer);status('جارٍ حفظ المسودة…');saveTimer=setTimeout(()=>persist(),350);}
     function persist(message) {
+      clearTimeout(saveTimer);saveTimer=null;
       if (readError) { status('تعذر قراءة البيانات المحفوظة. لم يتم استبدالها.'); return false; }
       try {localStorage.setItem(KEY,JSON.stringify(db));status(message || 'تم حفظ المسودة');return true;}
       catch {status('تعذر الحفظ على هذا المتصفح. المدخلات ما زالت معروضة.');return false;}
@@ -100,18 +103,22 @@
       $('#bcSaved').innerHTML = '<option value="">اختر دراسة</option>' + db.studies.map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');
       $('#bcSaved').value = selected;
     }
+    function sectionHtml(s) {
+      return `<section class="bc-section" data-section="${s.id}"><div class="bc-heading"><input aria-label="اسم القسم" data-section-name value="${esc(s.name)}" style="flex:1"><span class="bc-count">${s.items.length} بند</span><b data-section-total="${s.id}"></b><button type="button" class="btn ghost sm" data-toggle aria-expanded="${!s.collapsed}" aria-controls="bc-items-${s.id}">${s.collapsed ? 'فتح التفاصيل' : 'طي التفاصيل'}</button><button type="button" class="btn ghost sm" data-add>إضافة بند تفصيلي</button><button type="button" class="btn ghost sm" data-delete-section>حذف القسم</button></div><div id="bc-items-${s.id}" ${s.collapsed ? 'hidden' : ''}>${s.items.length ? '' : '<p class="bc-empty">أضف بنود هذا القسم وحدّد الكمية وتكلفة الوحدة لكل بند.</p>'}${s.items.map(r=>`<div class="bc-row" data-item="${r.id}"><label class="bc-item-name">البند التفصيلي<input data-k="name" value="${esc(r.name)}" placeholder="اسم البند"></label><label>الكمية<input data-k="qty" type="number" min="0" step="any" value="${num(r.qty)}"></label><label>تكلفة الوحدة<input data-k="unit" type="number" min="0" step="any" value="${num(r.unit)}"></label><div data-total aria-label="إجمالي البند">${money(num(r.qty)*num(r.unit))}</div><button type="button" class="btn ghost sm" data-delete-item>حذف</button></div>`).join('')}</div></section>`;
+    }
+    function renderSection(s){const node=modal.querySelector(`[data-section="${s.id}"]`);if(node)node.outerHTML=sectionHtml(s);totals();}
     function render() {
       $('#branchCalcName').value = db.draft.name;
-      $('#branchCalcRows').innerHTML = db.draft.sections.map(s=>`<section class="bc-section" data-section="${s.id}"><div class="bc-heading"><input aria-label="اسم القسم" data-section-name value="${esc(s.name)}" style="flex:1"><span class="bc-count">${s.items.length} بند</span><b data-section-total="${s.id}"></b><button type="button" class="btn ghost sm" data-toggle aria-expanded="${!s.collapsed}" aria-controls="bc-items-${s.id}">${s.collapsed ? 'فتح التفاصيل' : 'طي التفاصيل'}</button><button type="button" class="btn ghost sm" data-add>إضافة بند تفصيلي</button><button type="button" class="btn ghost sm" data-delete-section>حذف القسم</button></div><div id="bc-items-${s.id}" ${s.collapsed ? 'hidden' : ''}>${s.items.length ? '' : '<p class="bc-empty">أضف بنود هذا القسم وحدّد الكمية وتكلفة الوحدة لكل بند.</p>'}${s.items.map(r=>`<div class="bc-row" data-item="${r.id}"><label class="bc-item-name">البند التفصيلي<input data-k="name" value="${esc(r.name)}" placeholder="اسم البند"></label><label>الكمية<input data-k="qty" type="number" min="0" step="any" value="${num(r.qty)}"></label><label>تكلفة الوحدة<input data-k="unit" type="number" min="0" step="any" value="${num(r.unit)}"></label><div data-total aria-label="إجمالي البند">${money(num(r.qty)*num(r.unit))}</div><button type="button" class="btn ghost sm" data-delete-item>حذف</button></div>`).join('')}</div></section>`).join('');
+      $('#branchCalcRows').innerHTML = db.draft.sections.map(sectionHtml).join('');
       totals();list();
     }
-    $('#branchCalcName').oninput = e => {db.draft.name=e.target.value;persist();};
+    $('#branchCalcName').oninput = e => {db.draft.name=e.target.value;queuePersist();};
     $('#branchCalcRows').addEventListener('input', e=>{
       const el=e.target.closest('[data-section]');if(!el)return;
       const s=db.draft.sections.find(s=>s.id===el.dataset.section);
       if(e.target.hasAttribute('data-section-name'))s.name=e.target.value;
       else {const row=e.target.closest('[data-item]');if(!row)return;const r=s.items.find(r=>r.id===row.dataset.item);const k=e.target.dataset.k;if(!['name','qty','unit'].includes(k))return;r[k]=k==='name'?e.target.value:num(e.target.value);row.querySelector('[data-total]').textContent=money(num(r.qty)*num(r.unit));}
-      totals();persist();
+      totals();queuePersist();
     });
     $('#branchCalcRows').addEventListener('click', e=>{
       const el=e.target.closest('[data-section]');if(!el)return;const s=db.draft.sections.find(s=>s.id===el.dataset.section);
@@ -120,24 +127,71 @@
       else if(e.target.closest('[data-delete-item]')){const row=e.target.closest('[data-item]');s.items=s.items.filter(r=>r.id!==row.dataset.item);}
       else if(e.target.closest('[data-delete-section]')){if(!confirm('حذف القسم وكل بنوده؟'))return;db.draft.sections=db.draft.sections.filter(x=>x.id!==s.id);}
       else return;
-      render();persist();
+      if(modal.querySelector(`[data-section="${s.id}"]`) && db.draft.sections.includes(s))renderSection(s);else {el.remove();totals();}
+      persist();
       if(e.target.closest('[data-add]')){const inputs=modal.querySelectorAll(`[data-section="${s.id}"] [data-k="name"]`);inputs[inputs.length-1]?.focus();}
     });
     $('#bcCollapseAll').onclick=()=>{db.draft.sections.forEach(s=>s.collapsed=true);render();persist();};
     $('#bcExpandAll').onclick=()=>{db.draft.sections.forEach(s=>s.collapsed=false);render();persist();};
     $('#branchCalcAdd').onclick=()=>{db.draft.sections.push({id:id(),name:'قسم جديد',items:[]});render();persist();};
-    $('#bcSave').onclick=()=>{
+    $('#bcSave').onclick=async()=>{
       if(!db.draft.name.trim()){status('اكتب اسم الفرع أو الدراسة قبل الحفظ.');$('#branchCalcName').focus();return;}
       const previous=copy(db.studies), snapshot=copy(db.draft);snapshot.name=snapshot.name.trim();snapshot.updatedAt=new Date().toISOString();
       const i=db.studies.findIndex(s=>s.id===snapshot.id);if(i<0)db.studies.push(snapshot);else db.studies[i]=snapshot;
-      if(!persist('تم حفظ الدراسة'))db.studies=previous;
+      if(!persist('تم حفظ الدراسة على الجهاز')){db.studies=previous;return;}
       list();$('#bcSaved').value=snapshot.id;
+      if(window.SonoStudyStore?.ready()){
+        $('#bcSave').disabled=true;
+        try{const cloud=await window.SonoStudyStore.save(snapshot);const local=db.studies.find(s=>s.id===snapshot.id);if(local)Object.assign(local,cloud);if(db.draft.id===snapshot.id)Object.assign(db.draft,cloud);persist('تم حفظ الدراسة على الجهاز والحساب');}
+        catch(e){status(e.message);}
+        finally{$('#bcSave').disabled=false;}
+      }
     };
     $('#bcNew').onclick=()=>{if(!persist())return;db.draft=fresh();render();persist('بدأت دراسة جديدة');};
     $('#bcOpen').onclick=()=>{const s=db.studies.find(s=>s.id===$('#bcSaved').value);if(!s){status('اختر دراسة لفتحها.');return;}if(!confirm('فتح النسخة المحفوظة؟ اضغط حفظ الدراسة أولاً إذا أردت الاحتفاظ بتعديلات المسودة الحالية.'))return;db.draft=copy(s);render();persist('تم فتح الدراسة ويمكنك تعديلها');};
-    const close=()=>{modal.classList.add('hide');document.body.style.overflow=previousOverflow;btn.focus();};let previousOverflow='';$('#branchCalcClose').onclick=close;
+    $('#bcSync').onclick=async()=>{
+      if(!window.SonoStudyStore?.ready()){status('سجّل الدخول واتصل بالإنترنت لمزامنة الحساب.');return;}
+      $('#bcSync').disabled=true;
+      try{
+        const studies=await window.SonoStudyStore.list();
+        studies.forEach(remote=>{
+          const i=db.studies.findIndex(s=>s.id===remote.id);
+          if(i<0){db.studies.push(remote);return;}
+          const local=db.studies[i];
+          if(remote.cloudUpdatedAt!==local.cloudUpdatedAt && (local.updatedAt||'')>(local.cloudUpdatedAt||'')){
+            const preserved=copy(local);preserved.id=id();preserved.name+=' — نسخة الجهاز';delete preserved.cloudId;delete preserved.cloudUpdatedAt;db.studies.push(preserved);db.studies[i]=remote;
+          }else if((remote.updatedAt||'')>=(local.updatedAt||''))db.studies[i]=remote;
+        });
+        persist('تم تحميل الدراسات من الحساب. افتح الدراسة المطلوبة.');list();
+      }catch(e){status(e.message);}finally{$('#bcSync').disabled=false;}
+    };
+    $('#bcBackup').onclick=()=>{
+      if(!persist())return;
+      const blob=new Blob([JSON.stringify({version:2,studies:db.studies,draft:db.draft},null,2)],{type:'application/json'});
+      const a=document.createElement('a'),url=URL.createObjectURL(blob);a.href=url;a.download='Swnw-branch-studies-'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+    };
+    $('#bcImport').onclick=()=>$('#bcImportFile').click();
+    $('#bcImportFile').onchange=async e=>{
+      const file=e.target.files[0];if(!file)return;
+      try{
+        if(file.size>10*1024*1024)throw Error();
+        const source=JSON.parse(await file.text());if(source.version!==2||!Array.isArray(source.studies)||!source.draft)throw Error();
+        const normalize=study=>{
+          if(!study||typeof study.name!=='string'||!Array.isArray(study.sections))throw Error();
+          return {id:id(),name:study.name,updatedAt:new Date().toISOString(),sections:study.sections.map(s=>{
+            if(!s||typeof s.name!=='string'||!Array.isArray(s.items))throw Error();
+            return {id:id(),name:s.name,collapsed:!!s.collapsed,items:s.items.map(r=>{if(!r||typeof r.name!=='string'||!Number.isFinite(Number(r.qty))||!Number.isFinite(Number(r.unit)))throw Error();return {id:id(),name:r.name,qty:num(r.qty),unit:num(r.unit)};})};
+          })};
+        };
+        const studies=source.studies.map(normalize),draft=normalize(source.draft);
+        if(!confirm('إضافة الدراسات من النسخة وفتح مسودتها؟'))return;
+        db.studies.push(...studies);db.draft=draft;render();persist('تمت استعادة النسخة');
+      }catch(e){status('الملف لا يحتوي نسخة صالحة من دراسات الفروع.');}finally{$('#bcImportFile').value='';}
+    };
+    const close=()=>{persist();modal.classList.add('hide');document.body.style.overflow=previousOverflow;btn.focus();};let previousOverflow='';$('#branchCalcClose').onclick=close;
     modal.addEventListener('click',e=>{if(e.target===modal)close();});
     modal.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();close();}if(e.key==='Tab'){const focusable=Array.from(modal.querySelectorAll('button,input,select')).filter(el=>!el.disabled&&!el.closest('[hidden]'));const first=focusable[0],last=focusable[focusable.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}});
+    window.addEventListener('pagehide',()=>persist());
     btn.onclick=()=>{render();previousOverflow=document.body.style.overflow;document.body.style.overflow='hidden';modal.classList.remove('hide');$('#branchCalcName').focus();};render();if(readError)status('تعذر قراءة البيانات المحفوظة. لم يتم استبدالها.');
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount);else mount();

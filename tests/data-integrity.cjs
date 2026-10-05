@@ -1,6 +1,6 @@
 const fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('node:assert/strict');
 const base=path.resolve(__dirname,'..');const ctx={window:{},console};vm.createContext(ctx);
-for(const f of ['parser','analytics','reports','parser-auto','adapters','data-integrity','insights','rules','schedule','exporters'])vm.runInContext(fs.readFileSync(base+'/assets/js/'+f+'.js','utf8'),ctx,{filename:f});
+for(const f of ['parser','analytics','reports','parser-auto','adapters','data-integrity','privacy','insights','rules','schedule','exporters'])vm.runInContext(fs.readFileSync(base+'/assets/js/'+f+'.js','utf8'),ctx,{filename:f});
 const W=ctx.window,I=W.SonoDataIntegrity,A=W.SonoAnalytics;
 const inc=(date,amount=100,receipt='1',fileNo='1')=>({date,amount,receipt,fileNo,patient:'',method:'نقدي',services:['كشف'],supplies:[]});
 const sum=rows=>rows.reduce((s,r)=>s+r.amount,0);

@@ -550,16 +550,8 @@ function versusActual(sch, datasets, A) {
     return o;
   };
 
-  const REV = { statusDetail: 'total', statusSummary: 'net', receipts: 'amount',
-                doctorLaser: 'collected', patientBalance: 'amount' };
   (datasets || []).forEach(ds => {
     const rows = ds.rows || [];
-    if (REV[ds.id]) rows.forEach(r => touch(r.doctor, o => {
-      const v = +r[REV[ds.id]] || 0;
-      o.rev += v; o.visits++;
-      if (typeof r.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.date)) o.days.add(r.date);
-      const p = +r.price || 0; if (p > 0) o.price.push(p);
-    }));
     if (ds.id === 'doctorDays') rows.forEach(r => touch(r.doctor, o => {
       if (typeof r.date === 'string') o.days.add(r.date);
     }));
@@ -569,6 +561,12 @@ function versusActual(sch, datasets, A) {
     }));
     if (ds.id === 'visitList') rows.forEach(r => touch(r.doctor, o => { o.visits++; }));
   });
+  const revenueRows=root.SonoDataIntegrity.doctorRevenueRows(datasets);
+  revenueRows.forEach(({row:r,amount})=>touch(r.doctor,o=>{
+    o.rev+=amount;o.visits++;
+    if(typeof r.date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(r.date))o.days.add(r.date);
+    if(+r.price>0)o.price.push(+r.price);
+  }));
   (A && A.doctors || []).forEach(d => touch(d.doctor, o => { o.fees = (o.fees || 0) + d.fees; }));
 
   const hasActual = Object.keys(act).length > 0;

@@ -44,7 +44,7 @@ function sliceDatasets(datasets,selected){
 }
 const PRIORITY={treasury:100,expenseVouchers:95,receipts:90,statusDetail:80,dailyRevenue:70,statusSummary:60,doctorClaim:55,costCenter:50,patientBalance:40,doctorLaser:35,accountDisplay:30,invoice:20};
 function fingerprint(r,side){
-  return JSON.stringify(side==='income'?[r.date,r.amount,r.receipt,r.fileNo,r.branch,r.services]:[r.date,r.amount,r.bayan,r.voucher,r.branch]);
+  return JSON.stringify(side==='income'?[r.date,r._aggregatePeriod,r.amount,r.receipt,r.fileNo,r.branch,r.services]:[r.date,r.amount,r.bayan,r.voucher,r.branch]);
 }
 function mergeSources(sources){
   const out={income:[],expense:[],excluded:[],used:[]};
@@ -69,5 +69,11 @@ function mergeSources(sources){
     });
   });return out;
 }
-root.SonoDataIntegrity={date,range,bounds,matches,sliceDatasets,mergeSources,contained};
+function doctorRevenueRows(datasets){
+  const field={statusDetail:'total',receipts:'amount',statusSummary:'net',doctorLaser:'collected',patientBalance:'amount',doctorClaim:'svcValue'};
+  const sources=(datasets||[]).filter(ds=>field[ds.id]).map(ds=>({kind:ds.id,name:ds.file+' — '+(ds.sheet||ds.id),period:ds.period,
+    income:(ds.rows||[]).filter(r=>r.doctor).map(r=>({date:r.date,_aggregatePeriod:date(r.date)?undefined:range([],ds.period),amount:+r[field[ds.id]]||0,receipt:r.receipt,fileNo:r.fileNo,branch:JSON.stringify([r.branch||'',root.SonoSchedule?root.SonoSchedule.docKey(r.doctor):P().normAr(r.doctor)]),services:[r.doctor||'',r.service||''],raw:r})),expense:[]}));
+  return mergeSources(sources).income.map(r=>({row:r.raw,amount:r.amount}));
+}
+root.SonoDataIntegrity={doctorRevenueRows,date,range,bounds,matches,sliceDatasets,mergeSources,contained};
 })(window);

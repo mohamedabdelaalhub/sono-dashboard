@@ -90,6 +90,7 @@ const SYSTEM = `أنت محلل مالي وتشغيلي لمركز طبي في �
    نداء المزوّد
    ============================================================ */
 async function call(cfg, messages, maxTokens, _retry) {
+  if(cfg.secure || root.SonoAIProxy && await root.SonoAIProxy.available())return root.SonoAIProxy.call(messages,maxTokens);
   const { provider, model, apiKey } = cfg;
   if (!apiKey) throw new Error('لا يوجد مفتاح ذكاء اصطناعي. اطلب من السوبر أدمن إضافته من ⚙ لوحة التحكم.');
   const budget = maxTokens || 2000;
@@ -221,6 +222,7 @@ ${JSON.stringify(d)}
 
 async function resolve() {
   const s = ST().get();
+  if(root.SonoAIProxy && await root.SonoAIProxy.available())return {secure:true,provider:s.provider,model:s.model};
   const isSuper = RO().isSuper(AU().user());
   const apiKey = await ST().resolveKey(AU().client(), isSuper);
   if (!apiKey) {

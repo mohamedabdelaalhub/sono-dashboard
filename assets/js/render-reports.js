@@ -75,7 +75,7 @@ function quickStats(ds) {
 /* ---------- أعلى القيم في بُعد معيّن ---------- */
 function topBreak(ds) {
   const rows = ds.rows || [];
-  const dim = DIM.find(k => ds.columns.includes(k) && new Set(rows.map(r => r[k])).size > 1);
+  const dim = DIM.find(k => root.SonoPrivacy.columns([k]).length && ds.columns.includes(k) && new Set(rows.map(r => r[k])).size > 1);
   const val = ['total','net','amount','value','revenue','paid','qty','clients']
     .find(k => ds.columns.includes(k));
   if (!dim || !rows.length) return null;
@@ -131,7 +131,7 @@ function card(ds, idx) {
   const info = ds.info || {};
   const stats = quickStats(ds);
   const top = topBreak(ds);
-  const cols = ds.columns.filter(k => LABEL[k]).slice(0, 9);
+  const cols = root.SonoPrivacy.columns(ds.columns).filter(k => LABEL[k]).slice(0, 9);
   const prev = (ds.rows || []).slice(0, 8);
   const per = ds.period && ds.period.from && ds.period.to
     ? root.SonoAnalytics.fmtDateAr(ds.period.from) + ' → ' + root.SonoAnalytics.fmtDateAr(ds.period.to) : '';

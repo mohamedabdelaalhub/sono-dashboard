@@ -5,7 +5,7 @@ const dom = new JSDOM(fs.readFileSync(base + '/index.html', 'utf8'), {url:'https
 const w = dom.window, d = w.document, errors = [];
 w.alert = m => errors.push(m);
 const load = name => w.eval(fs.readFileSync(base + '/assets/js/' + name + '.js', 'utf8'));
-for (const name of ['parser','analytics','reports','parser-auto','adapters','data-integrity','insights','rules','roles','schedule','charts','render','render-reports']) load(name);
+for (const name of ['parser','analytics','reports','parser-auto','adapters','data-integrity','privacy','insights','rules','roles','schedule','compute-logic','compute','charts','render','render-reports']) load(name);
 w.SonoAuth = {mode:()=> 'local', user:()=>({id:'test',role:'سوبر أدمن'}),restore:async()=>null,isRecovery:()=>false};
 w.SonoBrand = {mount(){}};
 w.SonoAdmins = {init(){}};
@@ -55,6 +55,14 @@ const dataset = {id:'statusDetail',name:'بيان تفصيلي',file:'details.xl
   assert.equal(s.datasets.length,0);
   assert.equal(s.activeDatasets.length,0);
   assert.equal(s.ins.has,false);
+  // Opening an archive clears raw report data before any export.
+  s.files=[{kind:'treasury',name:'cash.xlsx',income:[income('2026-09-01',999)],expense:[]}];s.datasets=[dataset];app.rebuild();await pause();
+  let handlers;w.SonoRender.renderArchive=(el,state,h)=>{handlers=h;};
+  const archivedA=w.SonoAnalytics.analyze([income('2026-07-01',17)],[],{});archivedA.ins={has:false,modules:[]};
+  w.SonoArchive={load:async()=>({A:archivedA,E:w.SonoRules.evaluate(archivedA,null),cmp:null,title:'محفوظ'})};
+  app.renderTab('arch');await handlers.open('archive-id');
+  assert.equal(s.A.kpi.revenue,17);assert.equal(s.files.length,0);assert.equal(s.datasets.length,0);assert.equal(s.activeDatasets.length,0);
+  d.getElementById('btnXlsx').click();await pause();assert.equal(exported.length,0);
   d.getElementById('btnClear').click();
   assert.equal(s.A,null);assert.equal(s.ins,null);assert.equal(s.datasets.length,0);
   assert.deepEqual(errors,[]);

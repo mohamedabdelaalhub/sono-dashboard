@@ -491,9 +491,10 @@ function renderAi() {
   $('aiTest').onclick = async () => {
     msg('aiMsg', 'ok', 'جارٍ الاختبار…');
     try {
-      const key = $('aiKey').value.trim() || await ST().resolveKey(AU().client(), true);
-      if (!key) throw new Error('لا يوجد مفتاح. أدخل المفتاح أولاً ثم اضغط اختبار.');
-      const txt = await root.SonoAI.ping({ provider: $('aiProv').value, model: $('aiModel').value.trim(), apiKey: key });
+      const secure=root.SonoAIProxy&&await root.SonoAIProxy.available();
+      const key = secure ? '' : $('aiKey').value.trim() || await ST().resolveKey(AU().client(), true);
+      if (!secure && !key) throw new Error('لا يوجد مفتاح. أدخل المفتاح أولاً ثم اضغط اختبار.');
+      const txt = await root.SonoAI.ping({ secure, provider: $('aiProv').value, model: $('aiModel').value.trim(), apiKey: key });
       msg('aiMsg', 'ok', 'الاتصال ناجح ✓ — رد النموذج: ' + txt);
     } catch (e) { msg('aiMsg', 'err', e.message); }
   };

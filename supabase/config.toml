@@ -1,0 +1,5 @@
+project_id = "sono-dashboard"
+
+[functions.dashboard-ai]
+verify_jwt = true
+entrypoint = "./functions/dashboard-ai/index.ts"

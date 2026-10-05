@@ -46,7 +46,10 @@ async function load(sb, user, isSuper) {
     }
   } catch (e) { /* الجدول غير موجود بعد */ }
 
-  if (isSuper) {
+  let secure=false;
+  try{secure=root.SonoAIProxy && await root.SonoAIProxy.available();}catch(e){secure=true;}
+  if(secure)S.apiKey='';
+  if (isSuper && !secure) {
     try {
       const { data } = await sb.from('app_secrets').select('api_key').eq('id', 1).maybeSingle();
       if (data && data.api_key) { S.apiKey = data.api_key; S.hasKey = true; }
@@ -57,8 +60,10 @@ async function load(sb, user, isSuper) {
 
 /* ---------- الحفظ (السوبر أدمن فقط) ---------- */
 async function save(sb, patch) {
+  const secure = sb && root.SonoAIProxy && await root.SonoAIProxy.available();
   Object.assign(S, patch);
-  if (S.apiKey) S.hasKey = true;
+  if(patch.apiKey!==undefined)S.hasKey=!!String(patch.apiKey||'').trim();
+  else if (S.apiKey) S.hasKey = true;
 
   if (!sb) {
     localStorage.setItem(LS, JSON.stringify(S));
@@ -77,7 +82,9 @@ async function save(sb, patch) {
   const r1 = await sb.from('app_settings').upsert(pub, { onConflict: 'id' });
   if (r1.error) throw new Error(mapErr(r1.error.message));
 
-  if (patch.apiKey !== undefined) {
+  if (patch.apiKey !== undefined && secure) {
+    await root.SonoAIProxy.setKey(patch.apiKey);S.apiKey='';
+  } else if (patch.apiKey !== undefined) {
     const r2 = await sb.from('app_secrets')
       .upsert({ id: 1, api_key: patch.apiKey || null, updated_at: new Date().toISOString() }, { onConflict: 'id' });
     if (r2.error) throw new Error(mapErr(r2.error.message));
@@ -111,6 +118,7 @@ function mapErr(m) {
 
 function reset() {
   S.apiKey = ''; S.hasKey = false;
+  if(root.SonoAIProxy)root.SonoAIProxy.reset();
 }
 
 root.SonoSettings = { get, load, save, hasKey, aiEnabledForAdmins, resolveKey, reset };

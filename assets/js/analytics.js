@@ -123,7 +123,7 @@ function analyze(income, expense, meta) {
   /* --- طرق الدفع --- */
   const methods = groupSum(income, r => r.method || 'غير محدد', r => r.amount)
     .map(m => ({ method: m.key, total: m.total, count: m.count, pct: revenue ? m.total / revenue : 0 }));
-  const cashShare = revenue ? (methods.find(m => /نقد|كاش نقدي/.test(P.normAr(m.method))) || { total: 0 }).total / revenue : 0;
+  const cashShare = revenue ? sum(methods.filter(m => /نقد|كاش/.test(P.normAr(m.method))), m => m.total) / revenue : 0;
 
   /* --- الخدمات (توزيع متساوٍ على بنود الإيصال متعدد الخدمات) --- */
   const svcMap = new Map(), catMap = new Map();
