@@ -1,0 +1,18 @@
+const {JSDOM}=require('jsdom'),fs=require('fs'),path=require('path'),assert=require('node:assert/strict');
+const pause=()=>new Promise(r=>setTimeout(r,30)),base=path.resolve(__dirname,'..');
+(async()=>{
+ const dom=new JSDOM('<body><nav id="tabs"></nav></body>',{url:'https://example.test/',runScripts:'outside-only'}),w=dom.window,d=w.document;w.confirm=()=>true;
+ let p='add',deleted=false,shares=[],saved;
+ const remote=()=>({id:'study',name:'فرع',ownerName:'محمد',ownerId:'owner',cloudId:'cloud',cloudVersion:1,cloudUpdatedAt:'2026-01-01',permission:p,sections:[{id:'section',name:'أجهزة',items:[{id:'item',name:'جهاز',qty:2,unit:100}]}]});
+ w.SonoAuth={user:()=>({id:'member',name:'موظف'}),mode:()=> 'supabase'};w.SonoRoles={isSuper:()=>p==='owner'};
+ w.SonoStudyStore={ready:()=>true,list:async()=>deleted?[]:[remote()],save:async s=>{saved=s;return {...s,cloudVersion:2};},remove:async()=>{deleted=true},users:async()=>[{user_id:'other',name:'أحمد',permission:shares.length?'view':null}],share:async(...args)=>shares.push(args)};
+ w.eval(fs.readFileSync(base+'/assets/js/branch-calculator.js','utf8'));await pause();d.getElementById('branchCalcBtn').click();await pause();
+ assert(d.getElementById('bcStudyList').textContent.includes('محمد'));assert(d.getElementById('bcStudyList').textContent.includes('200'));
+ d.querySelector('[data-open-study]').click();assert(d.querySelector('[data-k="unit"]').disabled);assert(!d.querySelector('[data-add]').disabled);assert(d.querySelector('[data-delete-item]').disabled);
+ d.querySelector('[data-add]').click();const inputs=d.querySelectorAll('[data-k="name"]');assert(inputs[0].disabled);assert(!inputs[1].disabled);
+ p='edit';await d.getElementById('bcSync').onclick();d.querySelector('[data-open-study]').click();assert(!d.querySelector('[data-k="unit"]').disabled);assert(d.querySelector('[data-add]').disabled);assert(d.querySelector('[data-delete-item]').disabled);
+ p='view';await d.getElementById('bcSync').onclick();d.querySelector('[data-open-study]').click();assert(d.getElementById('bcSave').disabled);assert(d.querySelector('[data-k="unit"]').disabled);
+ p='owner';await d.getElementById('bcSync').onclick();d.querySelector('[data-open-study]').click();await d.getElementById('bcStudyList').onclick({target:d.querySelector('[data-share-study]')});d.getElementById('bcAddUser').value='other';await d.getElementById('bcGrant').onclick();assert.equal(shares[0][2],'view');assert(d.querySelector('[data-member]'));
+ await d.getElementById('bcStudyList').onclick({target:d.querySelector('[data-delete-study]')});assert(deleted);assert.equal(d.querySelectorAll('[data-open-study]').length,0);
+ dom.window.close();console.log('PASS study list owner/total, add/edit/view controls, sharing and confirmed deletion');
+})().catch(e=>{console.error(e);process.exitCode=1;});

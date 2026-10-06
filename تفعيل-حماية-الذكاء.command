@@ -19,11 +19,11 @@ echo 'سجّل الدخول إلى حساب Supabase الذي يملك مشرو�
 npx --yes supabase login
 npx --yes supabase functions deploy dashboard-ai --project-ref "$PROJECT_REF"
 if command -v pbcopy >/dev/null && command -v open >/dev/null; then
-  pbcopy < "$TASK_ROOT/supabase/migration-secure-ai.sql"
+  cat "$TASK_ROOT/supabase/migration-branch-sharing.sql" "$TASK_ROOT/supabase/migration-secure-ai.sql" | pbcopy
   open "https://supabase.com/dashboard/project/$PROJECT_REF/sql/new"
-  echo 'نسخت كود التفعيل. الصقه في SQL Editor واضغط Run.'
+  echo 'نسخت كود تفعيل مشاركة الدراسات وحماية الذكاء الاصطناعي. الصقه في SQL Editor واضغط Run.'
 else
-  echo 'افتح SQL Editor في المشروع وشغّل supabase/migration-secure-ai.sql.'
+  echo 'افتح SQL Editor في المشروع وشغّل migration-branch-sharing.sql ثم migration-secure-ai.sql من مجلد supabase.'
 fi
 echo 'بعد نجاح التنفيذ سجّل الخروج من الداشبورد ثم الدخول واختبر التحليل الذكي.'
 read -r -p 'اضغط Enter للإغلاق' _answer
