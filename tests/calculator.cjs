@@ -12,7 +12,7 @@ function app(saved){
 (async()=>{
   let dom=app();await pause();const w=dom.window,d=w.document;
   const input=(el,value)=>{el.value=value;el.dispatchEvent(new w.Event('input',{bubbles:true}));};
-  d.getElementById('branchCalcBtn').click();
+  d.getElementById('branchCalcBtn').click();d.getElementById('bcNavEditor').click();
   const other=d.querySelectorAll('[data-section]')[1];
   d.querySelector('[data-add]').click();assert.equal(d.querySelectorAll('[data-section]')[1],other);
   input(d.querySelector('[data-k="name"]'),'جهاز');input(d.querySelector('[data-k="qty"]'),'4');input(d.querySelector('[data-k="unit"]'),'123.5');
