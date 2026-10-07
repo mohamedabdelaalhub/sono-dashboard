@@ -578,3 +578,14 @@ table.schMatrix td:first-child { text-align:right; }
   .schActions .btn { flex:1 1 auto; }
   .schFilters input[type=search], .schFilters select { flex:1 1 100%; }
 }
+
+/* Missing data is neither a positive result nor a failed target. */
+.unavailable, .tag.unavailable {color:#805600!important;background:#fff2d6!important;border:1px solid #dec68d;border-radius:6px;padding:2px 8px;white-space:nowrap;font-size:inherit;}
+.detailLink {font:inherit;color:var(--petrol);background:transparent;border:0;border-bottom:1px dotted currentColor;cursor:pointer;padding:4px 0;text-align:inherit;}
+.detailLink:focus-visible {outline:2px solid var(--petrol);outline-offset:4px;}
+.riskGroup {margin-bottom:20px;}
+.riskGroup>summary {cursor:pointer;background:var(--paper,#fff);padding:18px 22px;border-radius:16px;margin-bottom:12px;font-size:20px;font-weight:700;}
+.riskGroup>summary .note {font-size:12px;font-weight:400;margin-inline-start:16px;}
+#financialDetailModal .mbox {width:min(1100px,95vw);max-height:90vh;overflow:auto;}
+@media(max-width:600px){.riskGroup>summary{padding:14px;font-size:17px;}.riskGroup>summary .note{display:block;margin-top:6px;}}
+@media print{.detailLink{border:0;color:inherit;}.riskGroup>summary .note{display:none;}}

@@ -10,7 +10,7 @@
 <link rel="preload" href="assets/fonts/BigVesta-Bold.woff2"    as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/Hiragino-W3.woff2"      as="font" type="font/woff2" crossorigin>
 <link rel="icon" href="assets/img/mark.svg" type="image/svg+xml">
-<link rel="stylesheet" href="assets/css/styles.css?v=51">
+<link rel="stylesheet" href="assets/css/styles.css?v=52">
 </head>
 <body>
 
@@ -249,8 +249,10 @@
   </div>
 
   <nav class="tabs hide" id="tabs" role="tablist">
+    <button role="tab" data-t="rep" aria-selected="false" id="tabRep" class="hide">التقارير المرفوعة <span class="cnt" id="cRep">0</span></button>
     <button role="tab" data-t="sum"  aria-selected="true">ملخص التقرير</button>
     <button role="tab" data-t="kpi"  aria-selected="false">المؤشرات</button>
+    <button role="tab" data-t="data" aria-selected="false" id="tabData">البيانات التفصيلية</button>
     <button role="tab" data-t="risk" aria-selected="false">المخاطر <span class="cnt" id="cRisk">0</span></button>
     <button role="tab" data-t="rec"  aria-selected="false">التوصيات <span class="cnt" id="cRec">0</span></button>
     <button role="tab" data-t="plan" aria-selected="false">خطة العمل <span class="cnt" id="cPlan">0</span></button>
@@ -260,10 +262,8 @@
     <button role="tab" data-t="amida" aria-selected="false" id="tabAmida">توزيع أرباح الأميدا</button>
     <button role="tab" data-t="ai"   aria-selected="false" id="tabAi">التحليل الذكي</button>
     <button role="tab" data-t="sch" aria-selected="false" id="tabSch" class="hide">جدول العيادات <span class="cnt" id="cSch">0</span></button>
-    <button role="tab" data-t="rep" aria-selected="false" id="tabRep" class="hide">التقارير المرفوعة <span class="cnt" id="cRep">0</span></button>
     <button role="tab" data-t="cmp" aria-selected="false" id="tabCmp" class="hide">المقارنة</button>
     <button role="tab" data-t="arch" aria-selected="false" id="tabArch">الأرشيف</button>
-    <button role="tab" data-t="data" aria-selected="false" id="tabData">البيانات التفصيلية</button>
   </nav>
 
   <main id="main">
@@ -344,49 +344,49 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
-<script src="assets/js/branch-calculator.js?v=51"></script>
-<script src="config.js?v=51"></script>
-<script src="assets/js/brand.js?v=51"></script>
-<script src="assets/js/roles.js?v=51"></script>
-<script src="assets/js/parser.js?v=51"></script>
-<script src="assets/js/parser-status.js?v=51"></script>
-<script src="assets/js/reports.js?v=51"></script>
-<script src="assets/js/parser-auto.js?v=51"></script>
-<script src="assets/js/parser-meta.js?v=51"></script>
-<script src="assets/js/adapters.js?v=51"></script>
-<script src="assets/js/data-integrity.js?v=51"></script>
-<script src="assets/js/privacy.js?v=51"></script>
-<script src="assets/js/insights.js?v=51"></script>
-<script src="assets/js/schedule.js?v=51"></script>
-<script src="assets/js/schedule-store.js?v=51"></script>
-<script src="assets/js/partners-store.js?v=51"></script>
-<script src="assets/js/tabaccess-store.js?v=51"></script>
-<script src="assets/js/usage-log.js?v=51"></script>
-<script src="assets/js/notify-store.js?v=51"></script>
-<script src="assets/js/amida-store.js?v=51"></script>
-<script src="assets/js/parser-pdf.js?v=51"></script>
-<script src="assets/js/analytics.js?v=51"></script>
-<script src="assets/js/rules.js?v=51"></script>
-<script src="assets/js/roi.js?v=51"></script>
-<script src="assets/js/charts.js?v=51"></script>
-<script src="assets/js/render.js?v=51"></script>
-<script src="assets/js/render-reports.js?v=51"></script>
-<script src="assets/js/render-schedule.js?v=51"></script>
-<script src="assets/js/render-dist.js?v=51"></script>
-<script src="assets/js/render-roi.js?v=51"></script>
-<script src="assets/js/render-amida.js?v=51"></script>
-<script src="assets/js/exporters.js?v=51"></script>
-<script src="assets/js/ai-proxy.js?v=51"></script>
-<script src="assets/js/settings.js?v=51"></script>
-<script src="assets/js/auth.js?v=51"></script>
-<script src="assets/js/admins.js?v=51"></script>
-<script src="assets/js/ai.js?v=51"></script>
-<script src="assets/js/archive.js?v=51"></script>
-<script src="assets/js/compare.js?v=51"></script>
-<script src="assets/js/compute-logic.js?v=51"></script>
-<script src="assets/js/compute.js?v=51"></script>
-<script src="assets/js/study-store.js?v=51"></script>
-<script src="assets/js/app.js?v=51"></script>
+<script src="assets/js/branch-calculator.js?v=52"></script>
+<script src="config.js?v=52"></script>
+<script src="assets/js/brand.js?v=52"></script>
+<script src="assets/js/roles.js?v=52"></script>
+<script src="assets/js/parser.js?v=52"></script>
+<script src="assets/js/parser-status.js?v=52"></script>
+<script src="assets/js/reports.js?v=52"></script>
+<script src="assets/js/parser-auto.js?v=52"></script>
+<script src="assets/js/parser-meta.js?v=52"></script>
+<script src="assets/js/adapters.js?v=52"></script>
+<script src="assets/js/data-integrity.js?v=52"></script>
+<script src="assets/js/privacy.js?v=52"></script>
+<script src="assets/js/insights.js?v=52"></script>
+<script src="assets/js/schedule.js?v=52"></script>
+<script src="assets/js/schedule-store.js?v=52"></script>
+<script src="assets/js/partners-store.js?v=52"></script>
+<script src="assets/js/tabaccess-store.js?v=52"></script>
+<script src="assets/js/usage-log.js?v=52"></script>
+<script src="assets/js/notify-store.js?v=52"></script>
+<script src="assets/js/amida-store.js?v=52"></script>
+<script src="assets/js/parser-pdf.js?v=52"></script>
+<script src="assets/js/analytics.js?v=52"></script>
+<script src="assets/js/rules.js?v=52"></script>
+<script src="assets/js/roi.js?v=52"></script>
+<script src="assets/js/charts.js?v=52"></script>
+<script src="assets/js/render.js?v=52"></script>
+<script src="assets/js/render-reports.js?v=52"></script>
+<script src="assets/js/render-schedule.js?v=52"></script>
+<script src="assets/js/render-dist.js?v=52"></script>
+<script src="assets/js/render-roi.js?v=52"></script>
+<script src="assets/js/render-amida.js?v=52"></script>
+<script src="assets/js/exporters.js?v=52"></script>
+<script src="assets/js/ai-proxy.js?v=52"></script>
+<script src="assets/js/settings.js?v=52"></script>
+<script src="assets/js/auth.js?v=52"></script>
+<script src="assets/js/admins.js?v=52"></script>
+<script src="assets/js/ai.js?v=52"></script>
+<script src="assets/js/archive.js?v=52"></script>
+<script src="assets/js/compare.js?v=52"></script>
+<script src="assets/js/compute-logic.js?v=52"></script>
+<script src="assets/js/compute.js?v=52"></script>
+<script src="assets/js/study-store.js?v=52"></script>
+<script src="assets/js/app.js?v=52"></script>
 </body>
 </html>
 

@@ -4,8 +4,8 @@
 (function (root) {
 'use strict';
 const C = root.SonoCharts;
-const fmt = v => v === null ? 'غير متاح' : C.fmt(v), esc = C.esc;
-const pc  = v => v === null ? 'غير متاح' : (isFinite(v) ? (v * 100).toFixed(1) : '0.0') + '%';
+const fmt = v => v === null ? '<span class="unavailable">غير متاح</span>' : C.fmt(v), esc = C.esc;
+const pc  = v => v === null ? '<span class="unavailable">غير متاح</span>' : (isFinite(v) ? (v * 100).toFixed(1) : '0.0') + '%';
 const eg  = v => fmt(v) + ' جنيه';
 const num = v => `<span class="num">${fmt(v)}</span>`;
 const numS = s => `<span class="num">${esc(s)}</span>`;
@@ -69,7 +69,10 @@ function insHtml(A, opts) {
             <tbody>${t.rows.map(r => `<tr>${r.map((c, ci) => {
               if (errTbl && ci === 2 && parseFloat(String(c).replace(/[^\d.-]/g, '')) > 0)
                 return `<td class="n"><a href="#" class="errLink" data-mod="${i}" data-user="${esc(String(r[0]))}">${esc(String(c))}</a></td>`;
-              return ci ? `<td class="n">${esc(String(c))}</td>` : `<td>${esc(String(c))}</td>`;
+              if (ci === 0 && t.details)
+                return `<td><button type="button" class="detailLink" data-mod="${i}" data-tbl="${ti}" data-key="${esc(String(c))}">${esc(String(c))}</button></td>`;
+              const text = esc(String(c));
+              return `<td${ci ? ' class="n"' : ''}>${String(c) === 'غير متاح' ? '<span class="unavailable">غير متاح</span>' : text}</td>`;
             }).join('')}</tr>`).join('')}</tbody>
           </table></div></div>`;
       }).join('')}`;
@@ -111,6 +114,32 @@ function insDraw(A) {
         rows.forEach(r => tbody.appendChild(r));
       });
     });
+  });
+
+  document.querySelectorAll('button.detailLink').forEach(button => {
+    button.onclick = () => {
+      const table = I.modules[+button.dataset.mod].tables[+button.dataset.tbl];
+      const items = table.details[button.dataset.key] || [];
+      document.getElementById('financialDetailModal')?.remove();
+      const box = document.createElement('div');
+      box.className = 'modal'; box.id = 'financialDetailModal';
+      box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true');
+      box.setAttribute('aria-label', table.title + ' — ' + button.dataset.key);
+      box.innerHTML = `<div class="mbox"><div class="mhead"><h2>${esc(table.title)} — ${esc(button.dataset.key)}</h2>
+        <button type="button" class="btn ghost" data-close>إغلاق</button></div>
+        <div class="mbody"><p>${items.length} بند · الخصم ${eg(items.reduce((n,r)=>n+r.discount,0))} · الإيراد ${eg(items.reduce((n,r)=>n+r.total,0))}</p>
+        <div class="tscroll"><table><thead><tr><th>التاريخ</th><th>الطبيب</th><th>الخدمة</th><th>القناة</th><th>الجهة</th><th>الكمية</th><th>السعر المعلن</th><th>الخصم</th><th>الإيراد</th></tr></thead>
+        <tbody>${items.map(r=>`<tr><td>${esc(r.date)}</td><td>${esc(r.doctor)}</td><td>${esc(r.service)}</td><td>${esc(r.channel || 'غير محدّد')}</td><td>${esc(r.insurer || 'غير محدّد')}</td><td class="n">${r.qty}</td><td class="n">${fmt(r.gross)}</td><td class="n">${fmt(r.discount)}</td><td class="n">${fmt(r.total)}</td></tr>`).join('') || '<tr><td colspan="9">لا توجد بنود خصم لهذا الطبيب في الفترة المختارة.</td></tr>'}</tbody></table></div></div></div>`;
+      document.body.appendChild(box);
+      const close = () => { box.remove(); button.focus(); };
+      box.querySelector('[data-close]').onclick = close;
+      box.onclick = e => { if(e.target === box) close(); };
+      box.onkeydown = e => {
+        if(e.key === 'Escape') close();
+        if(e.key === 'Tab') { e.preventDefault(); box.querySelector('[data-close]').focus(); }
+      };
+      box.querySelector('[data-close]').focus();
+    };
   });
 
   /* ---------- تفاصيل أخطاء تسجيل موظف بعينه ---------- */
@@ -461,7 +490,7 @@ function metricTable(A, E) {
   rows.forEach((r,i) => { if (missing.has(i)) {r[1]='غير متاح';r[3]=null;r[4]='غير متوفر في المصدر';} });
   return rows.map(r => `<tr>
     <td>${esc(r[0])}</td><td class="n">${esc(r[1])}</td><td class="n">${esc(r[2])}</td>
-    <td><span class="tag ${r[3] ? 'low' : 'high'}">${r[3] === null ? 'غير متاح' : r[3] ? 'ضمن المستهدف' : 'خارج المستهدف'}</span></td>
+    <td><span class="tag ${r[3] === null ? 'unavailable' : r[3] ? 'low' : 'high'}">${r[3] === null ? 'غير متاح' : r[3] ? 'ضمن المستهدف' : 'خارج المستهدف'}</span></td>
     <td style="color:var(--muted);font-size:12.5px">${esc(r[4])}</td></tr>`).join('');
 }
 
@@ -482,9 +511,8 @@ function renderRisks(el, A, E) {
       </ul>
     </div>
     ${Object.keys(byArea).map(area => `
-      <div class="card" style="padding-bottom:6px">
-        <h2>${esc(area)} <span class="tag area">${byArea[area].length}</span></h2>
-      </div>
+      <details class="riskGroup" open>
+        <summary>${esc(area)} <span class="tag area">${byArea[area].length}</span><span class="note">عرض / إخفاء التفاصيل</span></summary>
       ${byArea[area].map(r => `
         <div class="risk ${r.sev}">
           <div class="rh">
@@ -499,7 +527,7 @@ function renderRisks(el, A, E) {
             ${r.impact > 0 ? `<span>الأثر المالي: <b>${fmt(r.impact)}</b> جنيه</span>` : ''}
             ${r.src ? `<span>المصدر: <b>${esc(r.src)}</b></span>` : ''}
           </div>
-        </div>`).join('')}`).join('')}`;
+        </div>`).join('')}</details>`).join('')}`;
 }
 
 /* ============================================================

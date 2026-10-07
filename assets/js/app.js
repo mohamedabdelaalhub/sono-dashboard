@@ -338,7 +338,7 @@ function applyTabAccessFilter() {
 }
 function firstAllowedTab() {
   if (isAmidaInvestor()) return 'amida';
-  const order = ['sum', 'kpi', 'risk', 'rec', 'plan', 'dist', 'roi', 'ai', 'sch', 'rep', 'arch', 'data'];
+  const order = ['rep', 'sum', 'kpi', 'data', 'risk', 'rec', 'plan', 'dist', 'roi', 'ai', 'sch', 'arch'];
   return order.find(isTabAllowed) || 'sum';
 }
 function gate(perm) {

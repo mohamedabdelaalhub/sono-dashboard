@@ -112,7 +112,7 @@ A.bookings = function (rows) {
 
   /* أسوأ الأطباء التزاماً */
   const docLoss = docs.filter(d => d.n >= 20).map(d => {
-    const rs = rows.filter(r => S(r.doctor) === d.k);
+    const rs = rows.filter(r => (S(r.doctor) || 'غير محدّد') === d.k);
     const l = rs.filter(r => cls(r.status) !== 'تم' && cls(r.status) !== 'منتظر').length;
     return { k: d.k, n: d.n, lost: l, rate: l / d.n };
   }).sort((x, y) => y.rate - x.rate);
@@ -863,7 +863,7 @@ A.doctorClaim = function (rows) {
   const tot = sum(rows, r => N(r.value)), svc = sum(rows, r => N(r.svcValue));
   const ratio = svc ? tot / svc : 0;
   const byDoc = grp(rows, 'doctor', r => N(r.value)).map(d => {
-    const rs = rows.filter(r => S(r.doctor) === d.k);
+    const rs = rows.filter(r => (S(r.doctor) || 'غير محدّد') === d.k);
     const sv = sum(rs, r => N(r.svcValue));
     return Object.assign({}, d, { svc: sv, ratio: sv ? d.v / sv : 0 });
   });
@@ -1229,7 +1229,7 @@ A.statusDetail = function (rows) {
   const ch = grp(rows, 'channel', r => N(r.total));
   const svc = grp(rows, 'service', r => N(r.total));
   const docD = grp(rows, 'doctor', r => N(r.discount)).map(d => {
-    const rs = rows.filter(r => S(r.doctor) === d.k);
+    const rs = rows.filter(r => (S(r.doctor) || 'غير محدّد') === d.k);
     const g = sum(rs, r => N(r.price) * (N(r.qty) || 1)) || sum(rs, r => N(r.total)) + d.v;
     return Object.assign({}, d, { rate: g ? d.v / g : 0, gross: g });
   }).filter(d => d.gross > 0).sort((a, b) => b.rate - a.rate);
@@ -1269,6 +1269,17 @@ A.statusDetail = function (rows) {
       (insShare > 0 ? `حصة جهات التعاقد / التسعير ${pc(insShare)} — لا يحدد هذا التقرير ما إذا كانت المبالغ محصّلة.` : 'لا توجد جهات تعاقد / تسعير مسجّلة في هذه الفترة.'))],
     risks: [], recos: [], plan: []
   };
+
+  // Keep only operational fields in drill-down data, including archived reports.
+  const detail = (field, key, discountsOnly) => rows.filter(r =>
+    (S(r[field]) || 'غير محدّد') === key && (!discountsOnly || N(r.discount) > 0)
+  ).map(r => ({ date: S(r.date), doctor: S(r.doctor) || 'غير محدّد',
+    service: S(r.service), channel: S(r.channel), insurer: S(r.insurer),
+    qty: N(r.qty) || 1, gross: N(r.price) * (N(r.qty) || 1) || N(r.total) + N(r.discount),
+    discount: N(r.discount), total: N(r.total) }));
+  M.tables[0].details = Object.fromEntries(docD.map(d => [d.k, detail('doctor', d.k, true)]));
+  M.tables[1].details = Object.fromEntries(ch.map(d => [d.k, detail('channel', d.k, false)]));
+  if (ins.length) M.tables[2].details = Object.fromEntries(ins.map(d => [d.k, detail('insurer', d.k, false)]));
 
   if (dRate > .12) {
     const sev = dRate > .25 ? 'high' : 'medium';
@@ -1378,7 +1389,7 @@ A.receipts = function (rows) {
           users.slice(0, 15).map(u => [u.k, fmt(u.n), cur(u.v), cur(u.n ? u.v / u.n : 0), pc(tot ? u.v / tot : 0)])),
       tbl('التحصيل وأتعاب الأطباء', '', ['الطبيب', 'الإيصالات', 'المحصّل', 'الأتعاب', 'النسبة الفعلية'],
           docs.slice(0, 20).map(d => {
-            const rs = rows.filter(r => S(r.doctor) === d.k);
+            const rs = rows.filter(r => (S(r.doctor) || 'غير محدّد') === d.k);
             const f = sum(rs, r => N(r.docAmount));
             return [d.k, fmt(d.n), cur(d.v), cur(f), d.v ? pc(f / d.v) : '—'];
           }))
@@ -1442,7 +1453,7 @@ A.doctorLaser = function (rows) {
     tables: [
       tbl('التحصيل حسب الطبيب', '', ['الطبيب', 'العمليات', 'المطلوب', 'المحصّل', 'نسبة التحصيل'],
           docs.slice(0, 20).map(d => {
-            const rs = rows.filter(r => S(r.doctor) === d.k);
+            const rs = rows.filter(r => (S(r.doctor) || 'غير محدّد') === d.k);
             const dd = sum(rs, r => N(r.due));
             return [d.k, fmt(d.n), cur(dd), cur(d.v), dd ? pc(d.v / dd) : '—'];
           })),
