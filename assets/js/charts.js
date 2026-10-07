@@ -50,7 +50,7 @@ function ribbon(el, data, opts) {
 
   el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="حركة الخزينة">
     <line class="axis" x1="0" y1="${mid}" x2="${W}" y2="${mid}" stroke="var(--ink)" stroke-width="1.4"/>
-    ${bars}<path class="netline" d="${path}"/>${ticks}</svg>`;
+    ${bars}${opts.revenueOnly ? '' : `<path class="netline" d="${path}"/>`}${ticks}</svg>`;
 
   const svg = el.querySelector('svg');
   svg.querySelectorAll('.hit').forEach(h => {
@@ -58,7 +58,7 @@ function ribbon(el, data, opts) {
       const d = data[+h.dataset.i];
       svg.classList.add('dim');
       svg.querySelectorAll('.bar').forEach(b => b.classList.toggle('on', b.dataset.i === h.dataset.i));
-      showTip(e, `<div class="t">${esc(d.full)}</div>
+      showTip(e, opts.revenueOnly ? `<div class="t">${esc(d.full)}</div>قيمة الخدمات <b>${fmt(d.inc)}</b>` : `<div class="t">${esc(d.full)}</div>
         الوارد <b>${fmt(d.inc)}</b><br>المنصرف <b>${fmt(d.out)}</b><br>
         الصافي <b>${fmt(d.inc - d.out)}</b>` +
         (d.rcpt !== undefined ? `<br>الإيصالات <b>${fmt(d.rcpt)}</b>` : '') +
@@ -247,3 +247,4 @@ function stackedBar(el, cats, series, opts) {
 
 root.SonoCharts = { ribbon, hbars, donut, gauge, sparkline, line, stackedBar, PALETTE, showTip, hideTip, fmt, esc };
 })(window);
+

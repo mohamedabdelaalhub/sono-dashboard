@@ -3,8 +3,8 @@
    ============================================================ */
 (function (root) {
 'use strict';
-const pc = v => +(v * 100).toFixed(1);
-const r0 = v => Math.round(v);
+const pc = v => v === null ? 'غير متاح' : +(v * 100).toFixed(1);
+const r0 = v => v === null ? 'غير متاح' : Math.round(v);
 
 function stamp() {
   const d = new Date(), p = n => String(n).padStart(2, '0');
@@ -49,7 +49,7 @@ function toXlsx(A, E, ctx, datasets) {
     ['نقطة التعادل التقديرية', r0(k.breakEvenRev), 'جنيه'],
     ['حصة التحصيل النقدي', pc(k.cashShare), '%'],
     ['تذبذب الإيراد اليومي', pc(k.cv), '%'],
-    ['مؤشر الصحة العام', E.score, 'من 100'],
+    ['مؤشر الصحة العام', E.score === null ? 'غير متاح' : E.score, 'من 100'],
     ['الفرصة المالية القابلة للاسترداد', r0(E.upside), 'جنيه'],
     [],
     ['قراءة تنفيذية'],
@@ -359,9 +359,9 @@ async function toPdf(A, E, ctx, onProgress) {
 /* نسخة HTML مبسّطة ومهيّأة للطباعة */
 function pdfHtml(A, E, ctx) {
   const k = A.kpi;
-  const fmt = n => Math.round(n).toLocaleString('en-US');
+  const fmt = n => n === null ? 'غير متاح' : Math.round(n).toLocaleString('en-US');
   const esc = s => String(s == null ? '' : s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
-  const p2 = v => (v * 100).toFixed(1) + '%';
+  const p2 = v => v === null ? 'غير متاح' : (v * 100).toFixed(1) + '%';
   const S = `font-family:"Hiragino Kaku","BigVesta Arabic",system-ui,Tahoma,sans-serif;direction:rtl;text-align:right`;
   const H2 = `font-family:"Hiragino Kaku","BigVesta Arabic",system-ui,Tahoma,sans-serif;font-size:17px;font-weight:700;color:#0D6E75;margin:22px 0 9px;padding-bottom:5px;border-bottom:2px solid #0D6E75`;
   const TD = `border:1px solid #D4DBE0;padding:6px 8px;font-size:11.5px`;
@@ -386,7 +386,7 @@ function pdfHtml(A, E, ctx) {
       <div style="text-align:left;font-size:11px;color:#5E7180">فترة التقرير
         <div style="font-family:'Hiragino Kaku','BigVesta Arabic',ui-monospace,monospace;font-size:13px;color:#16242E;font-weight:600">${esc(A.meta.rangeLabel)}</div></div>
     </div>
-    <div style="font-size:10.5px;color:#5E7180;margin-bottom:16px">صدر في ${new Date().toLocaleString('ar-EG')} · مؤشر الصحة العام ${E.score}/100 · ${E.risks.length} مخاطرة مرصودة</div>
+    <div style="font-size:10.5px;color:#5E7180;margin-bottom:16px">صدر في ${new Date().toLocaleString('ar-EG')} · مؤشر الصحة العام ${E.score === null ? "غير متاح" : E.score + "/100"} · ${E.risks.length} مخاطرة مرصودة</div>
 
     <div style="${H2}">١ · المؤشرات الرئيسية</div>
     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px">
@@ -397,7 +397,7 @@ function pdfHtml(A, E, ctx) {
       ${kpiBox('متوسط الإيصال', fmt(k.avgTicket), 'المريض ' + fmt(k.avgPerPatient))}
       ${kpiBox('المرضى المتكررون', p2(k.repeatRate), fmt(k.repeat) + ' من ' + fmt(k.patients))}
       ${kpiBox('أتعاب الأطباء', fmt(k.doctorFees), p2(k.doctorFeeRatio) + ' من الإيراد')}
-      ${kpiBox('نقطة التعادل', fmt(k.breakEvenRev), 'التغطية ' + (k.revenue / (k.breakEvenRev || 1)).toFixed(2) + '×')}
+      ${kpiBox('نقطة التعادل', fmt(k.breakEvenRev), k.breakEvenRev === null ? 'ارفع تقرير المصروفات' : 'التغطية ' + (k.revenue / (k.breakEvenRev || 1)).toFixed(2) + '×')}
     </div>
 
     <div style="${H2}">٢ · ملخص التقرير</div>
@@ -407,7 +407,7 @@ function pdfHtml(A, E, ctx) {
 
     <div style="${H2}">٣ · المؤشرات مقابل المستهدف</div>
     ${table(['المؤشر', 'القيمة', 'المستهدف', 'الحالة'],
-      metricRows(A).map(r => [r[0], r[1], r[2], r[3] ? 'ضمن المستهدف' : 'خارج المستهدف']), [null, 'n', 'n', null])}
+      metricRows(A).map(r => [r[0], r[1], r[2], r[3] === null ? 'غير متاح' : r[3] ? 'ضمن المستهدف' : 'خارج المستهدف']), [null, 'n', 'n', null])}
 
     <div style="${H2}">٤ · المخاطر (${E.risks.length})</div>
     ${E.risks.map((r, i) => `
@@ -462,8 +462,8 @@ function metricRows(A) {
     topServiceShareMax: .30, topDoctorShareMax: .25, returningRateMin: .30, revenueCvMax: .45,
     suppliesRatioMin: .02, unclassifiedMax: .03
   }, (root.SONO_CONFIG || {}).benchmarks || {});
-  const p = v => (v * 100).toFixed(1) + '%';
-  return [
+  const p = v => v === null ? 'غير متاح' : (v * 100).toFixed(1) + '%';
+  const rows = [
     ['الهامش الصافي', p(k.margin), '≥ ' + p(B.netMarginMin), k.margin >= B.netMarginMin],
     ['المنصرف ÷ الإيراد', p(k.costRatio), '≤ 70%', k.costRatio <= .70],
     ['أتعاب الأطباء ÷ الإيراد', p(k.doctorFeeRatio), '≤ ' + p(B.doctorFeeRatioMax), k.doctorFeeRatio <= B.doctorFeeRatioMax],
@@ -477,6 +477,11 @@ function metricRows(A) {
     ['المستلزمات ÷ الإيراد', p(k.suppliesRatio), '≥ ' + p(B.suppliesRatioMin), k.suppliesRatio >= B.suppliesRatioMin],
     ['المصروفات غير المصنّفة', p(k.unclassifiedRatio), '≤ ' + p(B.unclassifiedMax), k.unclassifiedRatio <= B.unclassifiedMax]
   ];
+  const missing = new Set();
+  if (A.coverage && A.coverage.expenses === false) [0,1,2,3,4,7,10,11].forEach(i => missing.add(i));
+  if (A.coverage && A.coverage.payments === false) missing.add(5);
+  rows.forEach((r,i) => {if(missing.has(i)){r[1]='غير متاح';r[3]=null;}});
+  return rows;
 }
 
 /* ============================================================
@@ -502,3 +507,4 @@ function planXlsx(plan, ctx, owner) {
 
 root.SonoExport = { toXlsx, toPdf, toPdfFromNodes, planXlsx, datasetsXlsx, addInsightSheets };
 })(window);
+

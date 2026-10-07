@@ -891,7 +891,10 @@ function evaluate(A, cmp) {
   const financial = A.kpi.revenue > 0;
 
   const risks = [];
+  const expenseRules = ['margin','costRatio','breakEven','doctorFees','payroll','rent','fixedLoad','doctorConc','advances','supplies','unclassified','doctorMargin','deptShare','costSpike'];
   if (financial) RULES.forEach(r => {
+    if (A.coverage && A.coverage.expenses === false && expenseRules.includes(r.id)) return;
+    if (A.coverage && A.coverage.payments === false && r.id === 'cash') return;
     let res;
     try { res = r.test(ctx); } catch (e) { res = false; }
     if (res) risks.push(Object.assign({ id: r.id, area: r.area, sevAr: SEV_AR[res.sev] }, res));
@@ -955,7 +958,7 @@ function evaluate(A, cmp) {
                     .concat(financial ? (INS.blocks || []) : []);
 
   return { risks, recos, plan, summary, fin: financial,
-           score: healthScore(ctx, risks),
+           score: A.coverage && A.coverage.expenses === false ? null : healthScore(ctx, risks),
            upside, criticalCount: crit.length };
 }
 
@@ -1003,7 +1006,7 @@ function buildSummary(c, risks, crit, upside) {
   lines.push({
     h: 'أين يقف المركز',
     p: `خلال ${cnt(A.meta.spanDays,'يوم واحد','يومين','أيام','يوماً')} (${A.meta.rangeLabel}) حقّق المركز إيراداً قدره ${cur(k.revenue)} ` +
-       `مقابل منصرف ${cur(k.cost)}، بصافي ${cur(k.net)} وهامش ${pc(k.margin)}. ` +
+       (A.coverage && A.coverage.expenses === false ? 'قيمة خدمات مسجّلة؛ لا تتوفر بيانات المصروفات لحساب الصافي أو الهامش. ' : `مقابل منصرف ${cur(k.cost)}، بصافي ${cur(k.net)} وهامش ${pc(k.margin)}. `) +
        `خدم ${cnt(k.patients,'مريضاً واحداً','مريضين','مرضى','مريضاً')} عبر ${cnt(k.receipts,'إيصال واحد','إيصالين','إيصالات','إيصالاً')} و${cnt(k.lineItems,'بند خدمة واحد','بندي خدمة','بنود خدمة','بند خدمة')}، ` +
        `بمتوسط ${cur(k.avgTicket)} للإيصال و${cur(k.avgPerPatient)} للمريض.`
   });
@@ -1011,12 +1014,12 @@ function buildSummary(c, risks, crit, upside) {
     h: 'من أين يأتي الإيراد',
     p: `أعلى فئة «${A.serviceCats[0] ? A.serviceCats[0].key : '—'}» بنسبة ${A.serviceCats[0] ? pc(A.serviceCats[0].pct) : '—'}، ` +
        `وأعلى خدمة مفردة «${A.services[0] ? A.services[0].key : '—'}» بنسبة ${pc(k.topServiceShare)}. ` +
-       `التحصيل: ${A.methods.map(m => `${m.method} ${pc(m.pct)}`).join('، ')}. ` +
+       (A.coverage && A.coverage.payments === false ? 'طريقة التحصيل غير متاحة في هذا المصدر. ' : `التحصيل: ${A.methods.map(m => `${m.method} ${pc(m.pct)}`).join('، ')}. `) +
        `أقوى يوم ${bestDow(A)} وأضعفه ${worstDow(A)}.`
   });
   lines.push({
     h: 'إلى أين يذهب المنصرف',
-    p: `${A.expCats.slice(0, 4).map(x => `${x.cat} ${cur(x.total)} (${pc(x.pct)})`).join('، ')}. ` +
+    p: A.coverage && A.coverage.expenses === false ? A.coverageNotice : `${A.expCats.slice(0, 4).map(x => `${x.cat} ${cur(x.total)} (${pc(x.pct)})`).join('، ')}. ` +
        `التكاليف الثابتة وشبه الثابتة ${cur(k.fixedCost)} أي ${pc(k.fixedRatio)} من الإيراد، ` +
        `ونقطة التعادل التقديرية ${cur(k.breakEvenRev)}.`
   });
@@ -1045,3 +1048,4 @@ function worstDow(A) { const a = A.dowAgg.filter(d => d.days).sort((x, y) => x.a
 
 root.SonoRules = { evaluate, SEV_AR, SEV_ORDER };
 })(window);
+

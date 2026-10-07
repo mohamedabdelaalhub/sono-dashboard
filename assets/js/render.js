@@ -4,8 +4,8 @@
 (function (root) {
 'use strict';
 const C = root.SonoCharts;
-const fmt = C.fmt, esc = C.esc;
-const pc  = v => (isFinite(v) ? (v * 100).toFixed(1) : '0.0') + '%';
+const fmt = v => v === null ? 'غير متاح' : C.fmt(v), esc = C.esc;
+const pc  = v => v === null ? 'غير متاح' : (isFinite(v) ? (v * 100).toFixed(1) : '0.0') + '%';
 const eg  = v => fmt(v) + ' جنيه';
 const num = v => `<span class="num">${fmt(v)}</span>`;
 const numS = s => `<span class="num">${esc(s)}</span>`;
@@ -145,6 +145,7 @@ function renderSummary(el, A, E, cmp) {
   const k = A.kpi;
   const fin = k.revenue > 0 || k.cost > 0;
   el.innerHTML = `
+    ${A.coverageNotice ? `<div class="notice"><h3>تغطية البيانات</h3><p>${esc(A.coverageNotice)}</p></div>` : ''}
     ${A.dupWarn ? `<div class="notice"><h3>منع احتساب نفس المبالغ أكثر من مرة</h3>
       <p>استخدمنا المصدر الأعلى أولوية للفترات المتداخلة: الخزينة ثم الإيصالات وبيان الحالة للإيراد، وسندات المصروفات قبل تقارير الأتعاب للمصروفات. استُبعدت السطور المتداخلة من الجمع في التقارير التالية، مع إبقائها متاحة للتحليل التشغيلي:</p>
       <ul>${A.dupWarn.map(name => `<li><div>${esc(name)}</div></li>`).join('')}</ul></div>` : ''}
@@ -155,7 +156,7 @@ function renderSummary(el, A, E, cmp) {
         <div class="gauge" id="gg"></div>
         <div class="sd">
           <h2>مؤشر الصحة المالية والتشغيلية</h2>
-          <p>محسوب آلياً من عدد المخاطر المكتشفة ودرجة خطورتها مقابل معايير المركز.
+          <p>${E.score === null ? 'لا تتوفر بيانات المصروفات لتقييم الصحة المالية. المخاطر التالية تخص البيانات التشغيلية المتاحة.' : 'محسوب آلياً من عدد المخاطر المكتشفة ودرجة خطورتها مقابل معايير المركز.'}
              ${E.criticalCount ? `<b>${E.criticalCount}</b> مخاطرة ذات أولوية عالية تحتاج قراراً هذا الشهر.` : 'لا مخاطر عالية في هذه الفترة.'}</p>
           <p style="margin-top:8px">الفرصة المالية القابلة للاسترداد من معالجة كل المخاطر: <b class="num">${fmt(E.upside)}</b> جنيه خلال الفترة.</p>
         </div>
@@ -176,8 +177,8 @@ function renderSummary(el, A, E, cmp) {
       </ul></div>` : ''}
     ${!fin ? '' : `<div class="card">
       <div class="chead">
-        <div><h2>شريط حركة الخزينة</h2>
-          <div class="note">الوارد أعلى الخط · المنصرف أسفله · الخط المتقطع = الرصيد التراكمي</div></div>
+        <div><h2>${A.coverage && A.coverage.payments === false ? 'قيمة الخدمات المسجّلة' : 'شريط حركة الخزينة'}</h2>
+          <div class="note">${A.coverage && A.coverage.payments === false ? 'قيم الخدمات حسب تاريخ الحجز؛ لا تمثل تحصيلاً نقدياً أو رصيد خزينة.' : 'الوارد أعلى الخط · المنصرف أسفله · الخط المتقطع = الرصيد التراكمي'}</div></div>
         <div class="seg" role="group">
           <button class="btn ghost" id="rbD" aria-pressed="true">يومي</button>
           <button class="btn ghost" id="rbW" aria-pressed="false">أسبوعي</button>
@@ -186,8 +187,7 @@ function renderSummary(el, A, E, cmp) {
       <div id="ribbon"></div>
       <div class="ribbon-legend">
         <span><i style="background:var(--petrol)"></i>الوارد</span>
-        <span><i style="background:var(--clay)"></i>المنصرف</span>
-        <span><i style="background:var(--ink);opacity:.5"></i>الرصيد التراكمي</span>
+        ${A.coverage && A.coverage.payments === false ? '' : '<span><i style="background:var(--clay)"></i>المنصرف</span><span><i style="background:var(--ink);opacity:.5"></i>الرصيد التراكمي</span>'}
       </div>
     </div>`}
 
@@ -212,7 +212,7 @@ function renderSummary(el, A, E, cmp) {
       </div>
     </div>`;
 
-  C.gauge(document.getElementById('gg'), E.score);
+  if (E.score !== null) C.gauge(document.getElementById('gg'), E.score); else document.getElementById('gg').textContent = 'تقييم مالي غير متاح';
   if (!fin) return;
   drawRibbon(A, 'd');
   const bD = document.getElementById('rbD'), bW = document.getElementById('rbW');
@@ -226,7 +226,7 @@ function drawRibbon(A, mode) {
   const data = mode === 'd'
     ? A.daily.map(d => ({ lab: d.date.slice(8, 10), full: d.date + ' — ' + d.dow, inc: d.rev, out: d.exp, rcpt: d.rcpt, pat: d.pat }))
     : A.weekly.map(w => ({ lab: 'أ' + w.idx, full: w.label, inc: w.rev, out: w.exp, rcpt: w.rcpt }));
-  C.ribbon(el, data, {});
+  C.ribbon(el, data, {revenueOnly:!!(A.coverage && A.coverage.payments === false)});
 }
 
 /* ---------- تفاصيل فئة مصروف عند الضغط عليها في «هيكل المصروفات» ---------- */
@@ -265,7 +265,7 @@ function renderKpi(el, A, E, cmp) {
     ['أتعاب الأطباء', fmt(k.doctorFees), 'جنيه', `${pc(k.doctorFeeRatio)} من الإيراد · ${A.doctors.length} طبيب`, 'k5', cmp && cmp.doctorFeeRatio],
     ['التحصيل النقدي', pc(k.cashShare), '', `الرقمي ${pc(k.digitalShare)}`, 'k3', cmp && cmp.cashShare],
     ['التكاليف الثابتة', fmt(k.fixedCost), 'جنيه', `${pc(k.fixedRatio)} من الإيراد`, 'k6', null],
-    ['نقطة التعادل', fmt(k.breakEvenRev), 'جنيه', `التغطية ${(k.revenue / (k.breakEvenRev || 1)).toFixed(2)}×`, 'k2', null],
+    ['نقطة التعادل', fmt(k.breakEvenRev), 'جنيه', k.breakEvenRev === null ? 'ارفع تقرير المصروفات' : `التغطية ${(k.revenue / (k.breakEvenRev || 1)).toFixed(2)}×`, 'k2', null],
     ['التذبذب اليومي', pc(k.cv), '', `أعلى/أدنى يوم`, 'k3', null],
     ['بنود الخدمة', fmt(k.lineItems), 'بند', `متوسط البند ${eg(k.avgLine)}`, '', null]
   ];
@@ -455,9 +455,13 @@ function metricTable(A, E) {
     ['المستلزمات ÷ الإيراد', pc(k.suppliesRatio), '≥ ' + pc(B.suppliesRatioMin || .02), k.suppliesRatio >= (B.suppliesRatioMin || .02), 'مؤشر على اكتمال قيد المخزون'],
     ['المصروفات غير المصنّفة', pc(k.unclassifiedRatio), '≤ ' + pc(B.unclassifiedMax || .03), k.unclassifiedRatio <= (B.unclassifiedMax || .03), 'من الإيراد']
   ];
+  const missing = new Set();
+  if (A.coverage && A.coverage.expenses === false) [0,1,2,3,4,7,10,11].forEach(i => missing.add(i));
+  if (A.coverage && A.coverage.payments === false) missing.add(5);
+  rows.forEach((r,i) => { if (missing.has(i)) {r[1]='غير متاح';r[3]=null;r[4]='غير متوفر في المصدر';} });
   return rows.map(r => `<tr>
     <td>${esc(r[0])}</td><td class="n">${esc(r[1])}</td><td class="n">${esc(r[2])}</td>
-    <td><span class="tag ${r[3] ? 'low' : 'high'}">${r[3] ? 'ضمن المستهدف' : 'خارج المستهدف'}</span></td>
+    <td><span class="tag ${r[3] ? 'low' : 'high'}">${r[3] === null ? 'غير متاح' : r[3] ? 'ضمن المستهدف' : 'خارج المستهدف'}</span></td>
     <td style="color:var(--muted);font-size:12.5px">${esc(r[4])}</td></tr>`).join('');
 }
 
@@ -1112,3 +1116,4 @@ function renderTeam(el, state) {
 root.SonoRender = { insHtml, insDraw, renderSummary, renderKpi, renderRisks, renderRecos, renderPlan, renderData,
                     renderAiTab, renderArchive, renderComparison, renderTeam, drawRibbon };
 })(window);
+

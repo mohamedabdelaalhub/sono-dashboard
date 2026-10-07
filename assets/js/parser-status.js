@@ -32,7 +32,7 @@ function detect(rows) {
     (rows[r] || []).forEach(c => { const k = headKey(c); if (k) keys.add(k); });
     /* البصمة المميّزة: خدمة + كمية + (خصم أو صافي) — وبلا عمود تاريخ */
     if (keys.has('service') && keys.has('qty') && (keys.has('discount') || keys.has('net'))) {
-      const hasDate = (rows[r] || []).some(c => /^التاريخ$/.test(P.normAr(c)));
+      const hasDate = (rows[r] || []).some(c => /^(التاريخ|تاريخ الحجز)$/.test(P.normAr(c)));
       if (!hasDate) return r;
     }
   }
@@ -151,3 +151,4 @@ function parse(wb, fileName) {
 
 root.SonoStatusParser = { parse, detect, splitDoctor };
 })(window);
+

@@ -5,8 +5,8 @@
 (function (root) {
 'use strict';
 const ST = () => root.SonoSettings, AU = () => root.SonoAuth, RO = () => root.SonoRoles;
-const r0 = v => Math.round(v);
-const p2 = v => +(v * 100).toFixed(1);
+const r0 = v => v === null ? null : Math.round(v);
+const p2 = v => v === null ? null : +(v * 100).toFixed(1);
 
 /* ============================================================
    بناء الملخّص المُرسل — قائمة بيضاء صارمة
@@ -15,6 +15,8 @@ function digest(A, E, cmp, opts) {
   opts = opts || {};
   const k = A.kpi;
   const d = {
+    تغطية_البيانات: A.coverageNotice || 'حسب المصادر المرفوعة',
+    القيم_غير_المتاحة: 'null تعني أن المؤشر غير متاح في المصدر ولا تعني صفراً.',
     الفترة: { المدى: A.meta.rangeLabel, عدد_الأيام: A.meta.spanDays, أيام_بها_نشاط: A.meta.activeDays },
     المؤشرات: {
       الإيراد: r0(k.revenue), المنصرف: r0(k.cost), الصافي: r0(k.net),
@@ -65,7 +67,7 @@ function digest(A, E, cmp, opts) {
                    patients: 'المرضى', avgTicket: 'متوسط_الإيصال', repeatRate: 'نسبة_التكرار',
                    cashShare: 'حصة_النقدي' }[f];
       const x = cmp[f];
-      if (x) d.مقارنة_بالفترة_السابقة[nm] = { الحالي: r0(x.cur * (f === 'margin' || f.includes('Rate') || f.includes('Share') ? 100 : 1)),
+      if (x && x.cur !== null && x.prev !== null) d.مقارنة_بالفترة_السابقة[nm] = { الحالي: r0(x.cur * (f === 'margin' || f.includes('Rate') || f.includes('Share') ? 100 : 1)),
                                               السابق: r0(x.prev * (f === 'margin' || f.includes('Rate') || f.includes('Share') ? 100 : 1)),
                                               التغير_نسبة: x.pct === null ? null : p2(x.pct) };
     });
@@ -266,3 +268,4 @@ function md(src) {
 
 root.SonoAI = { narrative, ask, ping, digest, md, call };
 })(window);
+

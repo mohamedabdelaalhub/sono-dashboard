@@ -1,6 +1,6 @@
 'use strict';
 self.window=self;
-importScripts('parser.js?v=50','parser-status.js?v=50','parser-meta.js?v=50','parser-auto.js?v=50','schedule.js?v=50','analytics.js?v=50','reports.js?v=50','data-integrity.js?v=50','privacy.js?v=50','insights.js?v=50','rules.js?v=50','compute-logic.js?v=50');
+importScripts('parser.js?v=51','parser-status.js?v=51','parser-meta.js?v=51','parser-auto.js?v=51','schedule.js?v=51','analytics.js?v=51','reports.js?v=51','data-integrity.js?v=51','privacy.js?v=51','insights.js?v=51','rules.js?v=51','compute-logic.js?v=51');
 self.onmessage=function(e){
   const {id,task,payload}=e.data;
   try{
@@ -8,3 +8,4 @@ self.onmessage=function(e){
     self.postMessage({id,result:self.SonoComputeLogic.execute(task,payload)});
   }catch(error){self.postMessage({id,error:error.message||String(error)});}
 };
+

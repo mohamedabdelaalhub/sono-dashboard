@@ -185,7 +185,7 @@ function analyze(income, expense, meta) {
   const top5Services = services.slice(0, 5);
   const hhiSvc = revenue ? sum(services.map(s => (s.total / revenue) ** 2)) : 0;
 
-  return {
+  const result = {
     meta: { ...meta, from, to, spanDays, activeDays,
             rangeLabel: from && to ? fmtDateAr(from) + ' → ' + fmtDateAr(to) : '—' },
     kpi: {
@@ -228,6 +228,16 @@ function analyze(income, expense, meta) {
       total: p.total, visits: uniq(p.items.map(i => rcptKey(i) || i.date)).length
     }))
   };
+  const detailOnly = income.length > 0 && income.every(r => r._financialKind === 'statusDetail');
+  if (detailOnly) {
+    result.coverage = { expenses: expense.length > 0, payments: false, kind: 'statusDetail' };
+    result.coverageNotice = expense.length ? 'بيان الحالة لا يحدد طريقة التحصيل النقدي أو الرقمي.' :
+      'بيان الحالة يعرض قيمة الخدمات ولا يحتوي مصروفات أو طرق تحصيل. الصافي والهامش ونقطة التعادل غير متاحة حتى رفع تقرير المصروفات للفترة نفسها.';
+    result.kpi.cashShare = null; result.kpi.digitalShare = null;
+    if (!expense.length) {result.daily.concat(result.weekly).forEach(r => {r.exp=null;r.net=null;});}
+    if (!expense.length) ['cost','net','margin','doctorFees','doctorFeeRatio','fixedCost','varCost','fixedRatio','costRatio','breakEvenRev','suppliesRecorded','suppliesRatio','unclassifiedRatio','topDoctorShare'].forEach(k => result.kpi[k] = null);
+  }
+  return result;
 }
 
 /* ============================================================
@@ -328,7 +338,7 @@ function compare(cur, prev) {
   const out = {};
   pick.forEach(k => {
     const a = cur.kpi[k], b = prev.kpi[k];
-    out[k] = { cur: a, prev: b, diff: a - b, pct: b ? (a - b) / Math.abs(b) : null };
+    out[k] = { cur: a, prev: b, diff: a === null || b === null ? null : a - b, pct: a === null || b === null ? null : b ? (a - b) / Math.abs(b) : null };
   });
   /* أكبر التغيّرات في فئات المصروفات */
   const pm = new Map(prev.expCats.map(c => [c.cat, c.total]));
@@ -346,3 +356,4 @@ function compare(cur, prev) {
 root.SonoAnalytics = { analyze, analyzeStatus, compare, periodKey, periodLabel, listPeriods,
                        DOW_AR, MON_AR, fmtDateAr, dparse, addDays, groupSum, sum, uniq };
 })(window);
+

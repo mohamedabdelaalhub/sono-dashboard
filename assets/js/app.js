@@ -426,6 +426,7 @@ async function handleFiles(list) {
         continue;
       }
       const datasets=parsed.datasets||[];
+      datasets.forEach(ds => (ds.warnings || []).forEach(w => warnings.push(f.name + ': ' + w)));
       if(parsed.kind==='status'){
         const st=parsed.data,first=datasets[0]||null;
         (st.warnings||[]).forEach(w=>warnings.push(f.name+': '+w));
@@ -1116,3 +1117,4 @@ function busy(on, msg) {
   else if (err) showErr(err.message);
 })();
 })(window);
+

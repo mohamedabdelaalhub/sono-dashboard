@@ -1244,7 +1244,7 @@ A.statusDetail = function (rows) {
       kpi('إجمالي الخصم', cur(disc), '', `${pc(dRate)} من السعر المعلن`, dRate > .15 ? 'k5' : 'k3'),
       kpi('بنود عليها خصم', pc(rows.length ? withD.length / rows.length : 0), '', `${fmt(withD.length)} بند`, 'k6'),
       kpi('قنوات الحجز', fmt(ch.length), 'قناة', ch[0] ? `أعلاها «${ch[0].k}» ${pc(tot ? ch[0].v / tot : 0)}` : '', 'k2'),
-      kpi('حصة التأمين', pc(insShare), '', ins.length ? `${fmt(ins.length)} جهة` : 'لا يوجد', insShare > .3 ? 'k5' : 'k4'),
+      kpi('حصة جهات التعاقد / التسعير', pc(insShare), '', ins.length ? `${fmt(ins.length)} جهة` : 'لا يوجد', insShare > .3 ? 'k5' : 'k4'),
       kpi('بنود مقيَّمة', pc(rows.length ? rated.length / rows.length : 0), '', 'تقييم المريض مسجّل', rated.length ? 'k4' : 'k6')
     ],
     charts: [
@@ -1259,14 +1259,14 @@ A.statusDetail = function (rows) {
       tbl('الإيراد حسب قناة الحجز', 'أين يأتي المال فعلاً',
           ['القناة', 'البنود', 'الإيراد', 'الحصة', 'متوسط البند'],
           ch.slice(0, 12).map(x => [x.k, fmt(x.n), cur(x.v), pc(tot ? x.v / tot : 0), cur(x.n ? x.v / x.n : 0)]))
-    ].concat(ins.length ? [tbl('الإيراد حسب جهة التأمين', 'إيراد مؤجّل التحصيل',
+    ].concat(ins.length ? [tbl('الإيراد حسب جهة التعاقد / التسعير', 'كما هو مسجّل بالمصدر — لا يحدد حالة التحصيل',
           ['الجهة', 'البنود', 'الإيراد', 'الحصة'],
           ins.slice(0, 12).map(x => [x.k, fmt(x.n), cur(x.v), pc(tot ? x.v / tot : 0)]))] : []),
     blocks: [blk('الخصومات وقنوات البيع',
       `بلغ الخصم ${cur(disc)} أي ${pc(dRate)} من السعر المعلن، على ${fmt(withD.length)} بنداً من ${fmt(rows.length)}. ` +
       (docD[0] ? `أعلى الأطباء خصماً «${docD[0].k}» بنسبة ${pc(docD[0].rate)}. ` : '') +
       (ch[0] ? `أعلى قناة «${ch[0].k}» بـ${pc(tot ? ch[0].v / tot : 0)} من الإيراد. ` : '') +
-      (insShare > 0 ? `حصة التأمين ${pc(insShare)} — إيراد مسجّل لكن تحصيله مؤجّل.` : 'لا يوجد إيراد تأمين في هذه الفترة.'))],
+      (insShare > 0 ? `حصة جهات التعاقد / التسعير ${pc(insShare)} — لا يحدد هذا التقرير ما إذا كانت المبالغ محصّلة.` : 'لا توجد جهات تعاقد / تسعير مسجّلة في هذه الفترة.'))],
     risks: [], recos: [], plan: []
   };
 
@@ -1300,7 +1300,7 @@ A.statusDetail = function (rows) {
       title: 'حصة كبيرة من الإيراد معلّقة على شركات التأمين',
       finding: `${pc(insShare)} من الإيراد (${cur(sum(ins, x => x.v))}) عبر ${cnt(ins.length, 'جهة واحدة', 'جهتان', 'جهات', 'جهة')}. ` +
                `هذا إيراد مسجّل لكنه لم يدخل الخزينة، ويخضع لمهل ورفض جزئي.`,
-      metric: 'حصة التأمين من الإيراد', value: pc(insShare), target: '≤ 30%' }));
+      metric: 'حصة جهات التعاقد / التسعير من الإيراد', value: pc(insShare), target: '≤ 30%' }));
   }
   return M;
 };
@@ -1774,3 +1774,4 @@ function build(datasets, ctx) {
 
 root.SonoInsights = { build, analyzers: A, emptyModule };
 })(window);
+

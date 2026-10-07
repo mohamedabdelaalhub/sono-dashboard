@@ -70,13 +70,13 @@ const AD = {
     ds.rows.forEach(r => {
       const amt = r.total !== null && r.total !== undefined ? num(r.total)
                 : num(r.price) * (num(r.qty) || 1) - num(r.discount);
-      if (!amt) return;
+      if (!r.service || !Number.isFinite(amt)) return;
       income.push(inc({
         date: r.date || fb, amount: amt,
-        method: r.insurer ? 'تأمين — ' + clean(r.insurer) : 'غير محدد',
-        services: svcList(r.service), patient: clean(r.patient), fileNo: r.fileNo,
+        method: 'غير محدد', // A pricing/contract entity does not identify the payment method.
+        services: [clean(r.service)], patient: clean(r.patient), fileNo: r.fileNo,
         /* لا يوجد رقم إيصال: نبني مفتاح زيارة من الملف والتاريخ */
-        receipt: (r.fileNo || '?') + '|' + (r.date || fb || ''),
+        receipt: (r.fileNo || clean(r.patient) || '?') + '|' + (r.date || fb || ''),
         note: r.channel ? 'قناة: ' + clean(r.channel) : '', src: ds.file
       }));
     });
@@ -299,3 +299,4 @@ function feeds(id) { return !!AD[id]; }
 
 root.SonoAdapters = { apply, feeds, list: Object.keys(AD) };
 })(window);
+

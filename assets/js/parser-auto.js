@@ -56,7 +56,7 @@ function detect(rows, fileName) {
     /* ٢) ابحث عن أفضل صف ترويسة */
     for (let r = 0; r < Math.min(rows.length, 40); r++) {
       const a = mapRow(rows[r], rows[r + 1], def.cols);
-      if (!a.hits) continue;
+      if (!a.hits || (a.hits < 2 && !titleHit && !fileHit)) continue;
       const merged = a.gained > 0;
       const need = def.need || [];
       const ok = need.every(k => a.map[k] !== undefined);
@@ -74,9 +74,18 @@ function detect(rows, fileName) {
 /* ============================================================
    الاستخراج
    ============================================================ */
-function extract(rows, found) {
+function extract(rows, found, worksheet) {
   const { def, map, dataRow } = found;
   const out = [];
+  // Resolve only actual Excel merge ranges. Blank insurer/channel cells are not carry-forward values.
+  const mergedValues = new Map();
+  if (def.id === 'statusDetail') (worksheet && worksheet['!merges'] || []).forEach(m => {
+    Object.values(map).filter(c => c >= m.s.c && c <= m.e.c).forEach(c => {
+      if (['total','price','qty','discount','tax'].some(k => map[k] === c)) return;
+      const value = (rows[m.s.r] || [])[m.s.c];
+      for (let r = m.s.r; r <= m.e.r; r++) mergedValues.set(r + '|' + c, value);
+    });
+  });
   /* أسماء الأعمدة — لتجاهل صفوف الترويسة المتكررة في التقارير متعددة الأقسام */
   const headNames = new Set();
   Object.keys(def.cols).forEach(k => def.cols[k].forEach(a => headNames.add(norm(a))));
@@ -99,10 +108,14 @@ function extract(rows, found) {
     const namedCells = cells.filter(c => c && headNames.has(c)).length;
     if (namedCells >= 2) continue;
 
+    // The exported status report includes unlabelled subtotals and a final total.
+    // Those rows have money but no service; they are checks, never transactions.
+    if (def.id === 'statusDetail' && !P().cleanAr(row[map.service])) continue;
     const rec = { _row: r };
     let filled = 0;
     for (const k in map) {
-      const raw = row[map[k]];
+      let raw = row[map[k]];
+      if ((raw === null || raw === undefined || raw === '') && mergedValues.has(r + '|' + map[k])) raw = mergedValues.get(r + '|' + map[k]);
       if (raw === null || raw === undefined || String(raw).trim() === '') { rec[k] = null; continue; }
       if (numKeys.includes(k)) rec[k] = P().toNum(raw);
       else if (dateKeys.includes(k)) { const d = P().parseDate(raw); rec[k] = d ? P().iso(d) : P().cleanAr(raw); }
@@ -116,7 +129,7 @@ function extract(rows, found) {
   /* الخلايا المدمجة تترك فراغات في أعمدة التجميع — نملؤها من الصف السابق */
   const FILL = ['date', 'doctor', 'patient', 'fileNo', 'store', 'group', 'branch',
                 'specialty', 'insurer', 'channel', 'center', 'account'];
-  const fill = FILL.filter(k => map[k] !== undefined);
+  const fill = def.id === 'statusDetail' ? [] : FILL.filter(k => map[k] !== undefined);
   const last = {};
   out.forEach(rec => fill.forEach(k => {
     if (rec[k] === null || rec[k] === '' || rec[k] === undefined) {
@@ -157,12 +170,21 @@ function parseAll(wb, fileName) {
     if (!rows.length) continue;
     const found = detect(rows, fileName);
     if (!found) continue;
-    const data = extract(rows, found);
+    const data = extract(rows, found, ws);
+    const warnings = [];
+    if (found.def.id === 'statusDetail') {
+      const totalIndex = found.map.total;
+      const lastRow = rows.slice().reverse().find(row => (row || []).some(v => v !== null && v !== '')) || [];
+      const declared = !P().cleanAr(lastRow[found.map.service]) ? P().toNum(lastRow[totalIndex]) : null;
+      const actual = data.reduce((sum, r) => sum + (P().toNum(r.total) || 0), 0);
+      if (declared !== null && Math.abs(declared - actual) > 0.01)
+        warnings.push('إجمالي بنود الخدمات ' + actual.toFixed(2) + ' لا يطابق إجمالي الملف ' + declared.toFixed(2) + '.');
+    }
     if (!data.length && !found.def.allowEmpty) continue;
     out.push({
       id: found.def.id, name: found.def.name, group: found.def.group,
       info: found.def.info, rows: data, period: findPeriod(rows),
-      columns: Object.keys(found.map), file: fileName, sheet: sn,
+      warnings, columns: Object.keys(found.map), file: fileName, sheet: sn,
       confidence: found.score, empty: !data.length
     });
   }
@@ -176,3 +198,4 @@ function parse(wb, fileName) {
 
 root.SonoAuto = { parse, parseAll, detect, extract, findPeriod };
 })(window);
+

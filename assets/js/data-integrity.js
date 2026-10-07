@@ -61,7 +61,7 @@ function mergeSources(sources){
           &&(!row.branch||a.branches.has('')||a.branches.has(row.branch))&&overlaps(rowRange,a.coverage));
         const k=fingerprint(row,side),n=(counts.get(k)||0)+1;counts.set(k,n);
         if(alternative||n<=(maxCopies.get(k)||0)){skipped++;return;}
-        out[side].push(Object.assign({},row,{_financialSource:source.name,_financialPeriod:coverage}));used++;
+        out[side].push(Object.assign({},row,{_financialSource:source.name,_financialKind:source.kind,_financialPeriod:coverage}));used++;
       });
       counts.forEach((n,k)=>maxCopies.set(k,Math.max(n,maxCopies.get(k)||0)));
       if(used){accepted.push({kind:source.kind,coverage,scope,branches:new Set(rows.map(r=>r.branch||''))});out.used.push({name:source.name,side,count:used});}
@@ -77,3 +77,4 @@ function doctorRevenueRows(datasets){
 }
 root.SonoDataIntegrity={doctorRevenueRows,date,range,bounds,matches,sliceDatasets,mergeSources,contained};
 })(window);
+
