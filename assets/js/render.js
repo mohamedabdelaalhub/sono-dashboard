@@ -4,11 +4,41 @@
 (function (root) {
 'use strict';
 const C = root.SonoCharts;
-const fmt = v => v === null ? '<span class="unavailable">غير متاح</span>' : C.fmt(v), esc = C.esc;
-const pc  = v => v === null ? '<span class="unavailable">غير متاح</span>' : (isFinite(v) ? (v * 100).toFixed(1) : '0.0') + '%';
+const fmt = v => v === null ? 'غير متاح' : C.fmt(v), esc = C.esc;
+const pc  = v => v === null ? 'غير متاح' : (isFinite(v) ? (v * 100).toFixed(1) : '0.0') + '%';
 const eg  = v => fmt(v) + ' جنيه';
 const num = v => `<span class="num">${fmt(v)}</span>`;
 const numS = s => `<span class="num">${esc(s)}</span>`;
+
+function exportButtons() {
+  if (!root.SonoRoles || !root.SonoAuth || !root.SonoRoles.can(root.SonoAuth.user(), 'export')) return '';
+  return '<div class="tableExports noprint"><button type="button" class="btn ghost sm" data-table-export="xlsx">تصدير Excel</button><button type="button" class="btn ghost sm" data-table-export="pdf">تصدير PDF</button></div>';
+}
+function bindTableExports(scope) {
+  scope.querySelectorAll('[data-table-export]').forEach(b=>{
+    b.onclick=async()=>{
+      if (!root.SonoRoles.can(root.SonoAuth.user(), 'export')) return;
+      const host=b.closest('.card,.mbody,.rcard');
+      const table=host && host.querySelector('table');
+      if (!table) return;
+      const title=(host.querySelector('h2') || host.closest('.mbox')?.querySelector('h2'))?.textContent || 'تقرير';
+      b.disabled=true;
+      try { await root.SonoExport.tableExport(table, title, b.dataset.tableExport); }
+      catch(e){alert('تعذر التصدير — '+(e.message || e));}
+      finally{b.disabled=false;}
+    };
+  });
+}
+function markUnavailable(el) {
+  if (!el) return;
+  const walker=document.createTreeWalker(el, NodeFilter.SHOW_TEXT), nodes=[];
+  while(walker.nextNode()) { const n=walker.currentNode; if(/غير متاح|غير متوفر/.test(n.nodeValue) && !n.parentElement.closest('.unavailable,script,style,button')) nodes.push(n); }
+  nodes.forEach(n=>{
+    const parts=n.nodeValue.split(/(غير متاح|غير متوفر)/g), frag=document.createDocumentFragment();
+    parts.forEach(part=>{if(part==='غير متاح'||part==='غير متوفر'){const badge=document.createElement('span');badge.className='unavailable';badge.textContent=part;frag.appendChild(badge);}else frag.appendChild(document.createTextNode(part));});
+    n.replaceWith(frag);
+  });
+}
 
 function delta(d, invert) {
   if (!d || d.pct === null || !isFinite(d.pct)) return '';
@@ -62,7 +92,7 @@ function insHtml(A, opts) {
       ${tbs.map((t, ti) => {
         const errTbl = !!m.userErrorDetails && m.id === 'bookings' && /تصنيف المستخدمين/.test(t.title);
         return `
-        <div class="card"><h2>${esc(t.title)}</h2>
+        <div class="card"><h2>${esc(t.title)}</h2>${exportButtons()}
           ${t.note ? `<div class="note">${esc(t.note)}</div>` : ''}
           <div class="tscroll"><table class="srt" data-mod="${i}" data-tbl="${ti}">
             <thead><tr>${t.head.map((h, hi) => `<th data-sort="${hi}" title="اضغط للترتيب">${esc(h)} <span class="srtIco">⇅</span></th>`).join('')}</tr></thead>
@@ -72,7 +102,7 @@ function insHtml(A, opts) {
               if (ci === 0 && t.details)
                 return `<td><button type="button" class="detailLink" data-mod="${i}" data-tbl="${ti}" data-key="${esc(String(c))}">${esc(String(c))}</button></td>`;
               const text = esc(String(c));
-              return `<td${ci ? ' class="n"' : ''}>${String(c) === 'غير متاح' ? '<span class="unavailable">غير متاح</span>' : text}</td>`;
+              return `<td${ci ? ' class="n"' : ''}>${String(c) === 'غير متاح' ? 'غير متاح' : text}</td>`;
             }).join('')}</tr>`).join('')}</tbody>
           </table></div></div>`;
       }).join('')}`;
@@ -119,7 +149,15 @@ function insDraw(A) {
   document.querySelectorAll('button.detailLink').forEach(button => {
     button.onclick = () => {
       const table = I.modules[+button.dataset.mod].tables[+button.dataset.tbl];
-      const items = table.details[button.dataset.key] || [];
+      let items = table.details[button.dataset.key] || [];
+      const state = root.SonoApp && root.SonoApp.state;
+      const canData = root.SonoRoles && root.SonoAuth && root.SonoRoles.can(root.SonoAuth.user(), 'data');
+      const field = /الخصومات حسب الطبيب/.test(table.title) ? 'doctor' : /قناة الحجز/.test(table.title) ? 'channel' : 'insurer';
+      const raw = canData && state && (state.activeDatasets || state.datasets || []).filter(d=>d.id==='statusDetail').flatMap(d=>d.rows || []);
+      if (raw && raw.length) items = raw.filter(r=>
+        (String(r[field] || '').trim() || 'غير محدّد') === button.dataset.key &&
+        (field !== 'doctor' || Number(r.discount) > 0)
+      ).map(r=>({date:r.date || '',patient:r.patient || '',fileNo:r.fileNo || '',doctor:r.doctor || 'غير محدّد',service:r.service || '',channel:r.channel || '',insurer:r.insurer || '',qty:Number(r.qty)||1,gross:Number(r.price)*(Number(r.qty)||1)||Number(r.total)+Number(r.discount),discount:Number(r.discount)||0,total:Number(r.total)||0}));
       document.getElementById('financialDetailModal')?.remove();
       const box = document.createElement('div');
       box.className = 'modal'; box.id = 'financialDetailModal';
@@ -127,20 +165,23 @@ function insDraw(A) {
       box.setAttribute('aria-label', table.title + ' — ' + button.dataset.key);
       box.innerHTML = `<div class="mbox"><div class="mhead"><h2>${esc(table.title)} — ${esc(button.dataset.key)}</h2>
         <button type="button" class="btn ghost" data-close>إغلاق</button></div>
-        <div class="mbody"><p>${items.length} بند · الخصم ${eg(items.reduce((n,r)=>n+r.discount,0))} · الإيراد ${eg(items.reduce((n,r)=>n+r.total,0))}</p>
-        <div class="tscroll"><table><thead><tr><th>التاريخ</th><th>الطبيب</th><th>الخدمة</th><th>القناة</th><th>الجهة</th><th>الكمية</th><th>السعر المعلن</th><th>الخصم</th><th>الإيراد</th></tr></thead>
-        <tbody>${items.map(r=>`<tr><td>${esc(r.date)}</td><td>${esc(r.doctor)}</td><td>${esc(r.service)}</td><td>${esc(r.channel || 'غير محدّد')}</td><td>${esc(r.insurer || 'غير محدّد')}</td><td class="n">${r.qty}</td><td class="n">${fmt(r.gross)}</td><td class="n">${fmt(r.discount)}</td><td class="n">${fmt(r.total)}</td></tr>`).join('') || '<tr><td colspan="9">لا توجد بنود خصم لهذا الطبيب في الفترة المختارة.</td></tr>'}</tbody></table></div></div></div>`;
+        <div class="mbody">${exportButtons()}<p>${items.length} بند · الخصم ${eg(items.reduce((n,r)=>n+r.discount,0))} · الإيراد ${eg(items.reduce((n,r)=>n+r.total,0))}</p>
+        <div class="tscroll"><table><thead><tr><th>التاريخ</th>${canData ? '<th>المريض</th><th>رقم الملف</th>' : ''}<th>الطبيب</th><th>الخدمة</th><th>القناة</th><th>الجهة</th><th>الكمية</th><th>السعر المعلن</th><th>الخصم</th><th>الإيراد</th></tr></thead>
+        <tbody>${items.map(r=>`<tr><td>${esc(r.date)}</td>${canData ? `<td>${esc(r.patient || (raw && raw.length ? 'غير مسجل بالمصدر' : 'غير متوفر في الأرشيف — ارفع الملف'))}</td><td>${esc(r.fileNo || '—')}</td>` : ''}<td>${esc(r.doctor)}</td><td>${esc(r.service)}</td><td>${esc(r.channel || 'غير محدّد')}</td><td>${esc(r.insurer || 'غير محدّد')}</td><td class="n">${r.qty}</td><td class="n">${fmt(r.gross)}</td><td class="n">${fmt(r.discount)}</td><td class="n">${fmt(r.total)}</td></tr>`).join('') || '<tr><td colspan="9">لا توجد بنود خصم لهذا الطبيب في الفترة المختارة.</td></tr>'}</tbody></table></div></div></div>`;
       document.body.appendChild(box);
+      bindTableExports(box);
       const close = () => { box.remove(); button.focus(); };
       box.querySelector('[data-close]').onclick = close;
       box.onclick = e => { if(e.target === box) close(); };
       box.onkeydown = e => {
         if(e.key === 'Escape') close();
-        if(e.key === 'Tab') { e.preventDefault(); box.querySelector('[data-close]').focus(); }
+        if(e.key === 'Tab') { const buttons=[...box.querySelectorAll('button')]; const first=buttons[0],last=buttons[buttons.length-1]; if(e.shiftKey && document.activeElement===first){e.preventDefault();last.focus();} else if(!e.shiftKey && document.activeElement===last){e.preventDefault();first.focus();} }
       };
       box.querySelector('[data-close]').focus();
     };
   });
+
+  bindTableExports(document);
 
   /* ---------- تفاصيل أخطاء تسجيل موظف بعينه ---------- */
   document.querySelectorAll('a.errLink').forEach(a => {
@@ -1143,5 +1184,10 @@ function renderTeam(el, state) {
 
 root.SonoRender = { insHtml, insDraw, renderSummary, renderKpi, renderRisks, renderRecos, renderPlan, renderData,
                     renderAiTab, renderArchive, renderComparison, renderTeam, drawRibbon };
+root.SonoRender.exportButtons = exportButtons;
+root.SonoRender.bindTableExports = bindTableExports;
+Object.keys(root.SonoRender).filter(k=>k.startsWith('render')).forEach(k=>{
+  const fn=root.SonoRender[k]; root.SonoRender[k]=function(el,...args){const out=fn(el,...args);markUnavailable(el);return out;};
+});
 })(window);
 

@@ -1,6 +1,6 @@
 'use strict';
 self.window=self;
-importScripts('parser.js?v=52','parser-status.js?v=52','parser-meta.js?v=52','parser-auto.js?v=52','schedule.js?v=52','analytics.js?v=52','reports.js?v=52','data-integrity.js?v=52','privacy.js?v=52','insights.js?v=52','rules.js?v=52','compute-logic.js?v=52');
+importScripts('parser.js?v=53','parser-status.js?v=53','parser-meta.js?v=53','parser-auto.js?v=53','schedule.js?v=53','analytics.js?v=53','reports.js?v=53','data-integrity.js?v=53','privacy.js?v=53','insights.js?v=53','rules.js?v=53','compute-logic.js?v=53');
 self.onmessage=function(e){
   const {id,task,payload}=e.data;
   try{

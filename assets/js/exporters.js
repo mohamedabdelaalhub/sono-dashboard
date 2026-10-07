@@ -187,7 +187,7 @@ function addDatasetSheets(wb, datasets, add) {
   const used = new Set(wb.SheetNames.map(n => n));
   (datasets || []).forEach((ds, i) => {
     if (!ds.rows || !ds.rows.length) return;
-    const cols = root.SonoPrivacy.columns(ds.columns);
+    const cols = root.SonoPrivacy.displayColumns(ds.columns);
     let nm = ds.name.slice(0, 28);
     let k = 1; while (used.has(nm)) nm = ds.name.slice(0, 25) + ' ' + (++k);
     used.add(nm);
@@ -505,6 +505,20 @@ function planXlsx(plan, ctx, owner) {
                  { compression: true });
 }
 
-root.SonoExport = { toXlsx, toPdf, toPdfFromNodes, planXlsx, datasetsXlsx, addInsightSheets };
+async function tableExport(table, title, kind) {
+  if (!root.SonoRoles || !root.SonoAuth || !root.SonoRoles.can(root.SonoAuth.user(), 'export')) throw new Error('لا توجد صلاحية للتصدير');
+  const safeName=title.replace(/[\/\\:*?"<>|]/g,'-').slice(0,100);
+  if(kind==='xlsx') {
+    const rows=[...table.rows].map(row=>[...row.cells].map(cell=>cell.textContent.replace(/⇅/g,'').trim()));
+    const wb=XLSX.utils.book_new(),ws=XLSX.utils.aoa_to_sheet([[title],[],...rows]);
+    wb.Workbook={Views:[{RTL:true}]};ws['!cols']=(rows[0]||[]).map(()=>({wch:24}));
+    XLSX.utils.book_append_sheet(wb,ws,'التفاصيل');XLSX.writeFile(wb,safeName+'.xlsx',{compression:true});return;
+  }
+  const node=document.createElement('div');const h=document.createElement('h2');h.textContent=title;node.appendChild(h);node.appendChild(table.cloneNode(true));
+  const ctx=root.SonoApp?.state?.ctx || {};
+  return toPdfFromNodes([node],{...ctx,section:title,fileName:safeName+'.pdf'});
+}
+
+root.SonoExport = { tableExport, toXlsx, toPdf, toPdfFromNodes, planXlsx, datasetsXlsx, addInsightSheets };
 })(window);
 

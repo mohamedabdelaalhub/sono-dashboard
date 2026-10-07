@@ -131,7 +131,7 @@ function card(ds, idx) {
   const info = ds.info || {};
   const stats = quickStats(ds);
   const top = topBreak(ds);
-  const cols = root.SonoPrivacy.columns(ds.columns).filter(k => LABEL[k]).slice(0, 9);
+  const cols = root.SonoPrivacy.displayColumns(ds.columns).filter(k => LABEL[k]).slice(0, 9);
   const prev = (ds.rows || []).slice(0, 8);
   const per = ds.period && ds.period.from && ds.period.to
     ? root.SonoAnalytics.fmtDateAr(ds.period.from) + ' → ' + root.SonoAnalytics.fmtDateAr(ds.period.to) : '';
@@ -186,6 +186,18 @@ function card(ds, idx) {
 
 /* يُستدعى بعد الرسم لملء الرسوم */
 function drawCharts(el, datasets) {
+  el.querySelectorAll('.rcard').forEach((card,i)=>{
+    const ds=datasets[i],body=card.querySelector('.rbody');
+    if(!body || !root.SonoRender || body.querySelector('.tableExports')) return;
+    body.insertAdjacentHTML('afterbegin',root.SonoRender.exportButtons());
+    body.querySelectorAll('[data-table-export]').forEach(b=>b.onclick=async()=>{
+      if(!root.SonoRoles.can(root.SonoAuth.user(),'export'))return;
+      const cols=root.SonoPrivacy.displayColumns(ds.columns).filter(k=>LABEL[k]);
+      const table=document.createElement('table');
+      table.innerHTML='<thead><tr>'+cols.map(k=>'<th>'+esc(LABEL[k])+'</th>').join('')+'</tr></thead><tbody>'+ds.rows.map(r=>'<tr>'+cols.map(k=>'<td>'+esc(r[k] ?? '')+'</td>').join('')+'</tr>').join('')+'</tbody>';
+      b.disabled=true;try{await root.SonoExport.tableExport(table,ds.name,b.dataset.tableExport);}catch(e){alert('تعذر التصدير — '+e.message);}finally{b.disabled=false;}
+    });
+  });
   datasets.forEach((ds, i) => {
     const t = topBreak(ds);
     const host = el.querySelector('#rb' + i);
@@ -195,3 +207,4 @@ function drawCharts(el, datasets) {
 
 root.SonoRenderReports = { render, drawCharts, quickStats, topBreak, LABEL };
 })(window);
+

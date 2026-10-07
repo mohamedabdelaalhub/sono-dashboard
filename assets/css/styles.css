@@ -589,3 +589,5 @@ table.schMatrix td:first-child { text-align:right; }
 #financialDetailModal .mbox {width:min(1100px,95vw);max-height:90vh;overflow:auto;}
 @media(max-width:600px){.riskGroup>summary{padding:14px;font-size:17px;}.riskGroup>summary .note{display:block;margin-top:6px;}}
 @media print{.detailLink{border:0;color:inherit;}.riskGroup>summary .note{display:none;}}
+
+.tableExports{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.kpi .val .unavailable{font-size:18px;line-height:1.6}.kpi .foot .unavailable{font-size:12px}

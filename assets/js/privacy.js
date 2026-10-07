@@ -2,6 +2,10 @@
 'use strict';
 const hidden = new Set(['patient','fileNo','nid','birth','card','bookingNo','visit','phone','mobile','address','nationalId','diagnosis','diagnoses','reason','note','desc','bayan','email']);
 function columns(cols){return (cols || []).filter(c=>!hidden.has(c) && c!=='_row');}
+function displayColumns(cols){
+  const allowed = root.SonoRoles && root.SonoAuth && root.SonoRoles.can(root.SonoAuth.user(), 'data');
+  return (cols || []).filter(c=>c!=='_row' && (!hidden.has(c) || (allowed && ['patient','fileNo'].includes(c))));
+}
 function forAnalysis(datasets){
   const identities=new Map(),phones=new Map();
   function token(map,value,prefix){if(!value)return '';const k=String(value);if(!map.has(k))map.set(k,prefix+(map.size+1));return map.get(k);}
@@ -25,5 +29,6 @@ function insights(value){
   (out.modules||[]).forEach(m=>{delete m.userErrorDetails;});
   return out;
 }
-root.SonoPrivacy={columns,forAnalysis,insights};
+root.SonoPrivacy={columns,displayColumns,forAnalysis,insights};
 })(typeof window!=='undefined'?window:self);
+
