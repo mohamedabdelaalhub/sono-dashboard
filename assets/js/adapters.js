@@ -153,27 +153,43 @@ const AD = {
     return { income, expense: [] };
   },
 
-  /* ---------- الإيراد اليومي: إيراد ومصروف حسب طريقة الدفع ---------- */
+  /* ---------- الإيراد اليومي: إيراد حسب طريقة الدفع + مصروفات بالبند ----------
+     الإيراد يُؤخذ من جدول طرق الدفع (وهو المرجع الرسمي للإجمالي).
+     المصروف يُؤخذ بالبند من جدول المصروفات إن طابق مجموعه الإجمالي المعلن (±1 جنيه)،
+     وإلا يبقى سطراً واحداً «غير مصنّف» مع تحذير — لا نخمّن ولا نكرّر العدّ.
+     التواريخ تُترك فارغة: التقرير مجمّع لفترة، والفترة تأتي من ترويسته. */
   dailyRevenue(ds) {
-    const fb = fallbackDate(ds), income = [], expense = [];
+    const income = [], expense = [];
+    const sec = ds.sections || {};
+    let payExpense = 0;
     ds.rows.forEach(r => {
       const rev = num(r.revenue);
       if (rev) income.push(inc({
-        date: r.date || fb, amount: rev, method: clean(r.method) || 'غير محدد',
+        date: r.date || null, amount: rev, method: clean(r.method) || 'غير محدد',
         services: ['غير محدد'], receipt: 'DR|' + clean(r.method), src: ds.file
       }));
-      const ex = num(r.expense);
-      if (ex) expense.push(exp({
-        date: r.date || fb, amount: ex, bayan: 'مصروفات — ' + (clean(r.method) || 'عام'),
-        cat: 'غير مصنّف', group: 'غير مصنّف', doctor: null, src: ds.file
-      }));
+      payExpense += num(r.expense);
       const fee = num(r.fees);
       if (fee) expense.push(exp({
-        date: r.date || fb, amount: fee,
+        date: r.date || null, amount: fee,
         bayan: 'رسوم تحصيل — ' + (clean(r.method) || 'عام'),
         cat: 'رسوم تحصيل', group: 'متغيّر', doctor: null, src: ds.file
       }));
     });
+    const lines = sec.expenses || [];
+    const declared = sec.summary && sec.summary.expenseTotal != null ? sec.summary.expenseTotal : payExpense;
+    const linesTotal = lines.reduce((t, l) => t + l.amount, 0);
+    const itemized = lines.length > 0 && Math.abs(linesTotal - declared) <= 1;
+    if (itemized) {
+      lines.forEach(l => expense.push(exp({
+        date: null, amount: l.amount, bayan: l.item, note: '', src: ds.file
+      })));
+    } else if (payExpense) {
+      expense.push(exp({
+        date: null, amount: payExpense, bayan: 'مصروفات — إجمالي بلا تفصيل',
+        cat: 'غير مصنّف', group: 'غير مصنّف', doctor: null, src: ds.file
+      }));
+    }
     return { income, expense };
   },
 

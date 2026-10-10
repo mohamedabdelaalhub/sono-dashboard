@@ -78,10 +78,10 @@ assets/js/
 كل وسوم `<script>` و `<link>` في `index.html` تحمل `?v=N`.
 **بعد أي تعديل على JS أو CSS ارفع الرقم** وإلا رأى المستخدم النسخة القديمة.
 
-الرقم الحالي: **`?v=10`**
+الرقم الحالي: **`?v=54`**
 
 ```bash
-sed -i '' 's/?v=10/?v=11/g' index.html
+sed -i "s/?v=54/?v=55/g" index.html assets/js/compute-worker.js assets/js/compute.js
 ```
 
 وبعد الرفع قل له يضغط `Command + Shift + R`.

@@ -6,7 +6,7 @@
 const C = root.SonoCharts;
 const fmt = v => v === null ? 'غير متاح' : C.fmt(v), esc = C.esc;
 const pc  = v => v === null ? 'غير متاح' : (isFinite(v) ? (v * 100).toFixed(1) : '0.0') + '%';
-const eg  = v => fmt(v) + ' جنيه';
+const eg  = v => v === null ? 'غير متاح' : fmt(v) + ' جنيه';
 const num = v => `<span class="num">${fmt(v)}</span>`;
 const numS = s => `<span class="num">${esc(s)}</span>`;
 
@@ -228,7 +228,7 @@ function renderSummary(el, A, E, cmp) {
           <h2>مؤشر الصحة المالية والتشغيلية</h2>
           <p>${E.score === null ? 'لا تتوفر بيانات المصروفات لتقييم الصحة المالية. المخاطر التالية تخص البيانات التشغيلية المتاحة.' : 'محسوب آلياً من عدد المخاطر المكتشفة ودرجة خطورتها مقابل معايير المركز.'}
              ${E.criticalCount ? `<b>${E.criticalCount}</b> مخاطرة ذات أولوية عالية تحتاج قراراً هذا الشهر.` : 'لا مخاطر عالية في هذه الفترة.'}</p>
-          <p style="margin-top:8px">الفرصة المالية القابلة للاسترداد من معالجة كل المخاطر: <b class="num">${fmt(E.upside)}</b> جنيه خلال الفترة.</p>
+          <p style="margin-top:8px">الأثر المالي التقديري لمعالجة المخاطر: <b class="num">${fmt(E.upside)}</b> جنيه خلال الفترة <span class="muted">(تقدير للمراجعة وليس مبلغاً مضموناً؛ لا يتضمن بنود الحوكمة ولا يكرّر المخاطر المتشابهة)</span>.</p>
         </div>
       </div>
     </div>
@@ -329,15 +329,15 @@ function renderKpi(el, A, E, cmp) {
     ['إجمالي الإيراد', fmt(k.revenue), 'جنيه', `${eg(k.revPerDay)} في اليوم`, '', cmp && cmp.revenue],
     ['إجمالي المنصرف', fmt(k.cost), 'جنيه', `${pc(k.costRatio)} من الإيراد`, 'k5', cmp && cmp.cost],
     ['الصافي', fmt(k.net), 'جنيه', `هامش ${pc(k.margin)}`, 'k4', cmp && cmp.net],
-    ['عدد المرضى', fmt(k.patients), 'مريض', `${fmt(k.receipts)} إيصال · ${k.visitsPerPatient.toFixed(2)} زيارة/مريض`, 'k2', cmp && cmp.patients],
+    ['عدد المرضى', fmt(k.patients), 'مريض', k.patients === null ? 'غير متاح في هذا المصدر' : `${fmt(k.receipts)} إيصال · ${k.visitsPerPatient.toFixed(2)} زيارة/مريض`, 'k2', cmp && cmp.patients],
     ['متوسط الإيصال', fmt(k.avgTicket), 'جنيه', `المريض ${eg(k.avgPerPatient)}`, 'k3', cmp && cmp.avgTicket],
-    ['المرضى المتكررون', pc(k.repeatRate), '', `${fmt(k.repeat)} من ${fmt(k.patients)} · ${fmt(k.oneVisit)} بزيارة واحدة`, 'k6', cmp && cmp.repeatRate],
+    ['المرضى المتكررون', pc(k.repeatRate), '', k.repeatRate === null ? 'غير متاح في هذا المصدر' : `${fmt(k.repeat)} من ${fmt(k.patients)} · ${fmt(k.oneVisit)} بزيارة واحدة`, 'k6', cmp && cmp.repeatRate],
     ['أتعاب الأطباء', fmt(k.doctorFees), 'جنيه', `${pc(k.doctorFeeRatio)} من الإيراد · ${A.doctors.length} طبيب`, 'k5', cmp && cmp.doctorFeeRatio],
     ['التحصيل النقدي', pc(k.cashShare), '', `الرقمي ${pc(k.digitalShare)}`, 'k3', cmp && cmp.cashShare],
     ['التكاليف الثابتة', fmt(k.fixedCost), 'جنيه', `${pc(k.fixedRatio)} من الإيراد`, 'k6', null],
     ['نقطة التعادل', fmt(k.breakEvenRev), 'جنيه', k.breakEvenRev === null ? 'ارفع تقرير المصروفات' : `التغطية ${(k.revenue / (k.breakEvenRev || 1)).toFixed(2)}×`, 'k2', null],
     ['التذبذب اليومي', pc(k.cv), '', `أعلى/أدنى يوم`, 'k3', null],
-    ['بنود الخدمة', fmt(k.lineItems), 'بند', `متوسط البند ${eg(k.avgLine)}`, '', null]
+    ['بنود الخدمة', A.coverage && A.coverage.services === false ? 'غير متاح' : fmt(k.lineItems), A.coverage && A.coverage.services === false ? '' : 'بند', A.coverage && A.coverage.services === false ? 'غير مقروء في هذا المصدر' : `متوسط البند ${eg(k.avgLine)}`, '', null]
   ];
   el.innerHTML = (!fin ? insHtml(A) : `
     <div class="kpis">${cards.map(c => `
@@ -528,6 +528,10 @@ function metricTable(A, E) {
   const missing = new Set();
   if (A.coverage && A.coverage.expenses === false) [0,1,2,3,4,7,10,11].forEach(i => missing.add(i));
   if (A.coverage && A.coverage.payments === false) missing.add(5);
+  if (A.coverage && A.coverage.services === false) missing.add(6);
+  if (A.coverage && A.coverage.patients === false) missing.add(8);
+  if (A.coverage && A.coverage.days === false) missing.add(9);
+  if (A.coverage && A.coverage.supplies === false) missing.add(10);
   rows.forEach((r,i) => { if (missing.has(i)) {r[1]='غير متاح';r[3]=null;r[4]='غير متوفر في المصدر';} });
   return rows.map(r => `<tr>
     <td>${esc(r[0])}</td><td class="n">${esc(r[1])}</td><td class="n">${esc(r[2])}</td>

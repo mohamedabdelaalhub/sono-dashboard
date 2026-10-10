@@ -1496,38 +1496,117 @@ A.doctorLaser = function (rows) {
 };
 
 /* ---------- الإيراد اليومي وطرق الدفع ---------- */
-A.dailyRevenue = function (rows) {
+A.dailyRevenue = function (rows, ds) {
+  const sec = (ds && ds.sections) || {};
   const rev = sum(rows, r => N(r.revenue)), fee = sum(rows, r => N(r.fees)), net = sum(rows, r => N(r.net));
-  const m = rows.map(r => ({ k: S(r.method) || 'غير محدّد', v: N(r.revenue), f: N(r.fees), n: N(r.net) }))
+  const spent = sum(rows, r => N(r.expense));
+  const m = rows.map(r => ({ k: S(r.method) || 'غير محدّد', v: N(r.revenue), f: N(r.fees), n: N(r.net), e: N(r.expense) }))
                 .sort((a, b) => b.v - a.v);
   const cash = m.filter(x => /نقد|كاش/.test(x.k)).reduce((s, x) => s + x.v, 0);
   const costly = m.filter(x => x.v > 0 && x.f / x.v > .02);
-  return {
-    headline: `إيراد ${cur(rev)} عبر ${cnt(m.length, 'طريقة دفع واحدة', 'طريقتا دفع', 'طرق دفع', 'طريقة دفع')}، رسوم ${cur(fee)}.`,
+
+  /* ---- الجداول الأخرى في الورقة (إن وُجدت) ---- */
+  const svc = sec.services || [], docs = sec.doctors || [], exps = sec.expenses || [], sm = sec.summary || {};
+  const svcTotal = sum(svc, x => x.value);
+  const cases = sec.doctorsTotal ? N(sec.doctorsTotal.cases) : sum(docs, d => d.cases);
+  const collected = sec.doctorsTotal ? N(sec.doctorsTotal.collected) : sum(docs, d => d.collected);
+  const doctorShareDue = sec.doctorsTotal && sec.doctorsTotal.share != null ? N(sec.doctorsTotal.share) : sum(docs, d => d.share);
+  const expTotal = sum(exps, x => x.amount);
+  const P = root.SonoParser;
+  const expBy = new Map();
+  exps.forEach(x => { const o = expBy.get(x.item) || { k: x.item, n: 0, v: 0 }; o.n++; o.v += x.amount; expBy.set(x.item, o); });
+  const expList = [...expBy.values()].sort((a, b) => b.v - a.v);
+  const paidFees = P ? sum(exps.filter(x => { const c = P.classifyExpense(x.item, ''); return c.cat === 'أتعاب أطباء'; }), x => x.amount) : 0;
+
+  /* ---- مراجعة الأرقام: كل فحص يقارن رقمين من جدولين مختلفين في الملف نفسه ---- */
+  const checks = [];
+  const chk = (label, a, b, why, tol) => { if (a === null || b === null || a === undefined || b === undefined) return;
+    const d = a - b; checks.push({ label, a, b, d, ok: Math.abs(d) <= Math.max(1, (tol || 0) * Math.abs(b)), why: why || '' }); };
+  if (sm.revenueTotal != null) chk('مجموع طرق الدفع = إجمالي الإيرادات المعلن', rev, sm.revenueTotal);
+  if (exps.length && (sm.expenseTotal != null || spent)) chk('مجموع سطور المصروفات = إجمالي المصروفات', expTotal, sm.expenseTotal != null ? sm.expenseTotal : spent);
+  if (sm.opening != null && sm.closing != null && sm.net != null) chk('الرصيد السابق + الصافي = الرصيد الحالي', sm.opening + sm.net, sm.closing);
+  if (svc.length) chk('إيراد طرق الدفع = إيراد الخدمات', rev, svcTotal, 'الفرق إيراد بلا خدمة مقابلة: عربون أو دفعات حالات سابقة أو خصم — يُراجَع.');
+  if (docs.length && svc.length) chk('تحصيل الأطباء = إيراد الخدمات', collected, svcTotal);
+  if (doctorShareDue && paidFees) chk('أتعاب الأطباء المدفوعة ≈ نسبتهم المستحقة', paidFees, doctorShareDue, 'فرق صغير طبيعي (أيام مُرحَّلة)؛ الكبير يعني أتعاباً غير مسددة أو زائدة.', 0.02);
+  const bad = checks.filter(c => !c.ok);
+
+  const M = {
+    headline: `إيراد ${cur(rev)} عبر ${cnt(m.length, 'طريقة دفع واحدة', 'طريقتا دفع', 'طرق دفع', 'طريقة دفع')}` +
+              (exps.length ? `، ومصروف ${cur(expTotal)} على ${cnt(expList.length, 'بند', 'بندين', 'بنود', 'بنداً')}` : '') +
+              (cases ? `، و${fmt(cases)} حالة` : '') + '.',
     kpis: [
       kpi('الإيراد', cur(rev), '', `${fmt(m.length)} طريقة دفع`),
       kpi('رسوم التحصيل', cur(fee), '', rev ? `${pc(fee / rev)} من الإيراد` : '', fee / (rev || 1) > .015 ? 'k5' : 'k4'),
-      kpi('الصافي بعد الرسوم', cur(net || rev - fee), '', '', 'k4'),
+      kpi(spent ? 'الصافي بعد المصروفات' : 'الصافي بعد الرسوم', cur(spent || net ? (net || rev - fee) : rev - fee), '', spent ? 'إيراد − مصروف (تدفق نقدي)' : '', 'k4'),
       kpi('حصة النقدي', pc(rev ? cash / rev : 0), '', cash / (rev || 1) > .6 ? 'أعلى من المستهدف' : 'ضمن المستهدف',
           cash / (rev || 1) > .6 ? 'k5' : 'k4'),
       kpi('أعلى طريقة', m[0] ? m[0].k : '—', '', m[0] ? cur(m[0].v) : '', 'k2'),
       kpi('طرق مكلفة', fmt(costly.length), 'طريقة', costly.length ? 'رسومها تتجاوز 2%' : 'لا يوجد', costly.length ? 'k5' : 'k4')
-    ],
-    charts: [cht('donut', 'الإيراد حسب طريقة الدفع', '', m.map(x => ({ label: x.k, value: Math.round(x.v) })))],
-    tables: [tbl('صافي كل طريقة دفع بعد الرسوم', 'قارن الصافي لا الإجمالي قبل تشجيع أي وسيلة',
+    ].concat(cases ? [
+      kpi('عدد الحالات', fmt(cases), 'حالة', `${fmt(docs.length)} طبيب/قسم`, 'k6'),
+      kpi('إيراد الحالة', cur(svcTotal && cases ? svcTotal / cases : 0), '', 'إيراد الخدمات ÷ الحالات', 'k2')
+    ] : []).concat(sm.opening != null ? [
+      kpi('رصيد ما قبله → الحالي', cur(sm.opening) + ' → ' + (sm.closing != null ? cur(sm.closing) : '—'), '', 'كما في التقرير (راجع تعريفه)', 'k3')
+    ] : []),
+    charts: [cht('donut', 'الإيراد حسب طريقة الدفع', '', m.map(x => ({ label: x.k, value: Math.round(x.v) })))]
+      .concat(svc.length ? [cht('hbars', 'أعلى الخدمات إيراداً', 'من جدول «تحليل المبيعات بالخدمات»', svc.slice().sort((a, b) => b.value - a.value).slice(0, 10).map(x => ({ label: x.name, value: Math.round(x.value) })), { suffix: ' ج' })] : [])
+      .concat(expList.length ? [cht('hbars', 'أعلى بنود المصروف', 'بأسماء حسابات السيستم', expList.slice(0, 10).map(x => ({ label: x.k, value: Math.round(x.v) })), { suffix: ' ج' })] : []),
+    tables: [tbl('صافي كل طريقة دفع بعد الرسوم', 'الصافي هنا بعد المصروفات المدفوعة بالطريقة نفسها (النقدي غالباً)',
       ['الطريقة', 'الإيراد', 'الرسوم', 'الصافي', 'نسبة الرسوم'],
-      m.map(x => [x.k, cur(x.v), cur(x.f), cur(x.n || x.v - x.f), x.v ? pc(x.f / x.v) : '—']))],
+      m.map(x => [x.k, cur(x.v), cur(x.f), cur(x.n || x.v - x.f), x.v ? pc(x.f / x.v) : '—']))]
+      .concat(checks.length ? [tbl('مراجعة الأرقام داخل التقرير', 'كل صف يقارن رقمين من جدولين مختلفين في الملف نفسه',
+        ['الفحص', 'الرقم الأول', 'الرقم الثاني', 'الفرق', 'النتيجة'],
+        checks.map(c => [c.label, cur(c.a), cur(c.b), cur(c.d), c.ok ? 'مطابق' : 'فرق — راجع']))] : [])
+      .concat(svc.length ? [tbl('الخدمات', `${fmt(svc.length)} خدمة · الإجمالي ${cur(svcTotal)}`,
+        ['الخدمة', 'القيمة', 'النسبة'],
+        svc.slice().sort((a, b) => b.value - a.value).slice(0, 25).map(x => [x.name, cur(x.value), pc(svcTotal ? x.value / svcTotal : 0)]))] : [])
+      .concat(docs.length ? [tbl('الأطباء والأقسام والحالات', `${fmt(cases)} حالة · المحصَّل ${cur(collected)} · نسبة الأطباء المستحقة ${cur(doctorShareDue)}`,
+        ['الطبيب / القسم', 'الحالات', 'المحصَّل', 'متوسط الحالة', 'نسبته المستحقة'],
+        docs.slice().sort((a, b) => b.collected - a.collected).map(d => [d.name, fmt(d.cases), cur(d.collected), d.cases ? cur(d.collected / d.cases) : '—', cur(d.share)]))] : [])
+      .concat(expList.length ? [tbl('المصروفات بالبند', `${fmt(exps.length)} حركة · الإجمالي ${cur(expTotal)}`,
+        ['البند', 'عدد الحركات', 'القيمة', 'من المصروف'],
+        expList.map(x => [x.k, fmt(x.n), cur(x.v), pc(expTotal ? x.v / expTotal : 0)]))] : []),
     blocks: [blk('وسائل التحصيل وتكلفتها',
       `الإيراد ${cur(rev)} وُزّع على ${cnt(m.length, 'طريقة واحدة', 'طريقتين', 'طرق', 'طريقة')}، ` +
       `أعلاها «${m[0] ? m[0].k : '—'}». رسوم التحصيل ${cur(fee)} أي ${pc(rev ? fee / rev : 0)} من الإيراد. ` +
-      `حصة النقدي ${pc(rev ? cash / rev : 0)}` + (cash / (rev || 1) > .6 ? ' — مرتفعة وتزيد مخاطر فروق الجرد.' : '.'))],
-    risks: costly.length ? [risk({ id: 'feeCost', area: 'التحصيل', sev: 'low',
+      `حصة النقدي ${pc(rev ? cash / rev : 0)}` + (cash / (rev || 1) > .6 ? ' — مرتفعة وتزيد مخاطر فروق الجرد.' : '.'))]
+      .concat(checks.length ? [blk('مراجعة الأرقام',
+        bad.length ? `${cnt(bad.length, 'فحص واحد', 'فحصان', 'فحوص', 'فحصاً')} من ${checks.length} فيها فرق: ` +
+          bad.map(c => `${c.label} (${cur(c.d)})`).join('، ') + '. باقي الفحوص مطابقة.'
+                   : `كل الفحوص الداخلية (${checks.length}) مطابقة.`)] : []),
+    risks: [], recos: [], plan: []
+  };
+
+  if (costly.length) M.risks.push(risk({ id: 'feeCost', area: 'التحصيل', sev: 'low',
       title: 'رسوم بعض وسائل التحصيل مرتفعة',
       finding: costly.map(x => `${x.k} ${pc(x.f / x.v)}`).join('، ') + `. الرسوم تؤكل من الهامش بصمت.`,
       impact: sum(costly, x => x.f - x.v * .01),
-      metric: 'نسبة رسوم التحصيل', value: pc(rev ? fee / rev : 0), target: '≤ 1%' })] : [],
-    recos: [], plan: []
-  };
+      metric: 'نسبة رسوم التحصيل', value: pc(rev ? fee / rev : 0), target: '≤ 1%' }));
+
+  const gapCheck = checks.find(c => c.label === 'إيراد طرق الدفع = إيراد الخدمات');
+  if (gapCheck && !gapCheck.ok && rev && Math.abs(gapCheck.d) / rev > .005) {
+    M.risks.push(risk({ id: 'revGap', area: 'الحوكمة', sev: Math.abs(gapCheck.d) / rev > .05 ? 'medium' : 'low',
+      title: 'إيراد طرق الدفع لا يطابق إيراد الخدمات',
+      finding: `إيراد الدفع ${cur(gapCheck.a)} مقابل إيراد الخدمات ${cur(gapCheck.b)}، فرق ${cur(gapCheck.d)} (${pc(Math.abs(gapCheck.d) / rev)} من الإيراد) لا تفسّره بيانات الملف.`,
+      metric: 'فرق الدفع عن الخدمات', value: cur(gapCheck.d), target: '≈ 0' }));
+    M.recos.push(reco({ id: 'revGap', area: 'الحوكمة', sev: 'low', title: 'تفسير الفرق بين إيراد الدفع وإيراد الخدمات',
+      risk: 'إيراد طرق الدفع لا يطابق إيراد الخدمات',
+      steps: ['افتح سندات القبض للفترة وابحث عن مبالغ بلا خدمة (عربون · دفعة حالة سابقة · خصم).',
+              'سجّل سبب كل فرق، وإن تكرر شهرياً فاطلب من مورّد السيستم أن يربطه بالخدمة.'] }));
+  }
+  if (sm.opening != null && sm.closing != null && cash && sm.opening + (m.find(x => /نقد|كاش/.test(x.k)) || { n: 0 }).n < 0) {
+    const cn = (m.find(x => /نقد|كاش/.test(x.k)) || { n: 0 }).n;
+    M.risks.push(risk({ id: 'drawer', area: 'التحصيل', sev: 'medium',
+      title: 'رصيد الخزينة المعلن قد يخلط النقدي بالإلكتروني',
+      finding: `النقدي وحده صافيه ${cur(cn)}؛ لو كان الرصيد السابق ${cur(sm.opening)} نقدياً فقط لأصبح رصيد الدرج ${cur(sm.opening + cn)} (سالباً). ` +
+               `الرصيد المعلن ${cur(sm.closing != null ? sm.closing : 0)} وقد يعني ذلك أنه يضم الفيزا والمحافظ أو توريداً لا يظهر في الملف.`,
+      metric: 'رصيد الدرج النقدي', value: cur(sm.opening + cn), target: '≥ 0' }));
+    M.recos.push(reco({ id: 'drawer', area: 'التحصيل', sev: 'medium', title: 'فصل رصيد الخزينة النقدي عن الرصيد الإلكتروني',
+      risk: 'رصيد الخزينة المعلن قد يخلط النقدي بالإلكتروني',
+      steps: ['اطلب من الخزينة جرداً فعلياً للنقدي في آخر يوم من الفترة وقارنه بهذا الرقم.',
+              'اعتمد رصيدين منفصلين: درج نقدي، وحساب بنكي/محافظ، وسجّل أي توريد بينهما.'] }));
+  }
+  return M;
 };
 
 /* ---------- فاتورة مريض ---------- */

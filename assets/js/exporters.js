@@ -36,13 +36,13 @@ function toXlsx(A, E, ctx, datasets) {
     ['إجمالي المنصرف', r0(k.cost), 'جنيه'],
     ['الصافي', r0(k.net), 'جنيه'],
     ['الهامش الصافي', pc(k.margin), '%'],
-    ['عدد المرضى', k.patients, 'مريض'],
-    ['عدد الإيصالات', k.receipts, 'إيصال'],
-    ['بنود الخدمة', k.lineItems, 'بند'],
+    ['عدد المرضى', k.patients === null ? 'غير متاح' : k.patients, 'مريض'],
+    ['عدد الإيصالات', k.patients === null ? 'غير متاح' : k.receipts, 'إيصال'],
+    ['بنود الخدمة', A.coverage && A.coverage.services === false ? 'غير متاح' : k.lineItems, 'بند'],
     ['متوسط الإيصال', r0(k.avgTicket), 'جنيه'],
     ['متوسط المريض', r0(k.avgPerPatient), 'جنيه'],
     ['نسبة المرضى المتكررين', pc(k.repeatRate), '%'],
-    ['متوسط الزيارات لكل مريض', +k.visitsPerPatient.toFixed(2), 'زيارة'],
+    ['متوسط الزيارات لكل مريض', k.visitsPerPatient === null ? 'غير متاح' : +k.visitsPerPatient.toFixed(2), 'زيارة'],
     ['أتعاب الأطباء', r0(k.doctorFees), 'جنيه'],
     ['أتعاب الأطباء ÷ الإيراد', pc(k.doctorFeeRatio), '%'],
     ['التكاليف الثابتة وشبه الثابتة', r0(k.fixedCost), 'جنيه'],
@@ -50,7 +50,7 @@ function toXlsx(A, E, ctx, datasets) {
     ['حصة التحصيل النقدي', pc(k.cashShare), '%'],
     ['تذبذب الإيراد اليومي', pc(k.cv), '%'],
     ['مؤشر الصحة العام', E.score === null ? 'غير متاح' : E.score, 'من 100'],
-    ['الفرصة المالية القابلة للاسترداد', r0(E.upside), 'جنيه'],
+    ['الأثر المالي التقديري لمعالجة المخاطر', r0(E.upside), 'جنيه'],
     [],
     ['قراءة تنفيذية'],
     ...E.summary.map(s => [s.h, s.p])
@@ -393,9 +393,9 @@ function pdfHtml(A, E, ctx) {
       ${kpiBox('إجمالي الإيراد', fmt(k.revenue), 'جنيه · ' + fmt(k.revPerDay) + ' يومياً')}
       ${kpiBox('إجمالي المنصرف', fmt(k.cost), p2(k.costRatio) + ' من الإيراد')}
       ${kpiBox('الصافي', fmt(k.net), 'هامش ' + p2(k.margin))}
-      ${kpiBox('عدد المرضى', fmt(k.patients), fmt(k.receipts) + ' إيصال')}
+      ${kpiBox('عدد المرضى', fmt(k.patients), k.patients === null ? 'غير متاح في هذا المصدر' : fmt(k.receipts) + ' إيصال')}
       ${kpiBox('متوسط الإيصال', fmt(k.avgTicket), 'المريض ' + fmt(k.avgPerPatient))}
-      ${kpiBox('المرضى المتكررون', p2(k.repeatRate), fmt(k.repeat) + ' من ' + fmt(k.patients))}
+      ${kpiBox('المرضى المتكررون', p2(k.repeatRate), k.repeatRate === null ? 'غير متاح في هذا المصدر' : fmt(k.repeat) + ' من ' + fmt(k.patients))}
       ${kpiBox('أتعاب الأطباء', fmt(k.doctorFees), p2(k.doctorFeeRatio) + ' من الإيراد')}
       ${kpiBox('نقطة التعادل', fmt(k.breakEvenRev), k.breakEvenRev === null ? 'ارفع تقرير المصروفات' : 'التغطية ' + (k.revenue / (k.breakEvenRev || 1)).toFixed(2) + '×')}
     </div>
@@ -480,6 +480,10 @@ function metricRows(A) {
   const missing = new Set();
   if (A.coverage && A.coverage.expenses === false) [0,1,2,3,4,7,10,11].forEach(i => missing.add(i));
   if (A.coverage && A.coverage.payments === false) missing.add(5);
+  if (A.coverage && A.coverage.services === false) missing.add(6);
+  if (A.coverage && A.coverage.patients === false) missing.add(8);
+  if (A.coverage && A.coverage.days === false) missing.add(9);
+  if (A.coverage && A.coverage.supplies === false) missing.add(10);
   rows.forEach((r,i) => {if(missing.has(i)){r[1]='غير متاح';r[3]=null;}});
   return rows;
 }
