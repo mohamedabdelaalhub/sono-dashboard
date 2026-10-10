@@ -70,10 +70,18 @@ function analyze(income, expense, meta) {
   /* بعض التقارير بلا عمود تاريخ: نستبعدها من السلاسل الزمنية ونُبقيها في الإجماليات */
   const isDate = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
   const dates = uniq(income.concat(expense).map(r => r.date).filter(isDate)).sort();
-  const from  = dates[0] ? dparse(dates[0]) : null;
-  const to    = dates[dates.length - 1] ? dparse(dates[dates.length - 1]) : null;
+  let from  = dates[0] ? dparse(dates[0]) : null;
+  let to    = dates[dates.length - 1] ? dparse(dates[dates.length - 1]) : null;
+  /* تقرير مجمّع بلا تواريخ سطور: الفترة تأتي من ترويسته (_aggregatePeriod) */
+  if (!from && !to) {
+    const per = income.concat(expense).map(r => r._aggregatePeriod).filter(p => p && isDate(p.from) && isDate(p.to));
+    if (per.length) {
+      from = dparse(per.map(p => p.from).sort()[0]);
+      to = dparse(per.map(p => p.to).sort().pop());
+    }
+  }
   const spanDays  = from && to ? dayDiff(from, to) + 1 : 0;
-  const activeDays = uniq(income.map(r => r.date).filter(isDate)).length || (dates.length || 1);
+  const activeDays = uniq(income.map(r => r.date).filter(isDate)).length || (dates.length || spanDays || 1);
 
   /* --- المرضى والإيصالات --- */
   const patKey = r => (r.fileNo && r.fileNo !== '0' ? 'F' + r.fileNo : 'N' + P.normAr(r.patient));
@@ -236,6 +244,18 @@ function analyze(income, expense, meta) {
     result.kpi.cashShare = null; result.kpi.digitalShare = null;
     if (!expense.length) {result.daily.concat(result.weekly).forEach(r => {r.exp=null;r.net=null;});}
     if (!expense.length) ['cost','net','margin','doctorFees','doctorFeeRatio','fixedCost','varCost','fixedRatio','costRatio','breakEvenRev','suppliesRecorded','suppliesRatio','unclassifiedRatio','topDoctorShare'].forEach(k => result.kpi[k] = null);
+  }
+  /* «الإيراد اليومي» وحده: طرق الدفع والمصروفات بالبند مقروءة، أما المرضى والخدمات واليوم بيومه فلا.
+     نُعلن ذلك صراحةً بدل قياسها على صفر. */
+  const dailyOnly = income.length > 0 && income.every(r => r._financialKind === 'dailyRevenue');
+  if (dailyOnly) {
+    result.coverage = { expenses: expense.length > 0, payments: true, services: false, patients: false,
+                        doctors: false, supplies: false, days: false, kind: 'dailyRevenue' };
+    result.coverageNotice = 'الإيراد اليومي يعرض الإجمالي بطرق الدفع والمصروفات بالبند، ولا يحدد المرضى ولا الخدمات يوماً بيوم. ' +
+      'مؤشرات المرضى وتركّز الخدمات وأيام الأسبوع غير متاحة منه — يوضحها بيان الحالة أو الخزينة للفترة نفسها.';
+    ['patients','repeat','oneVisit','repeatRate','visitsPerPatient','avgTicket','avgPerPatient','avgLine',
+     'patPerDay','topServiceShare','hhiSvc','cv','zeroDays','suppliesRatio','revPerDay'].forEach(k => result.kpi[k] = null);
+    result.kpi.revPerDay = spanDays ? revenue / spanDays : null;
   }
   return result;
 }

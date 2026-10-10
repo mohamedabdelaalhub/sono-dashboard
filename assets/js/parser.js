@@ -47,7 +47,9 @@ function parseDate(v) {
     const d = new Date(Date.UTC(1899, 11, 30) + v * 86400000);
     return isNaN(d) ? null : startOfDay(d);
   }
-  const s = String(v).trim();
+  /* أرقام هندية/فارسية وعلامات الاتجاه الخفية («٣۰/۰٩/۲۰۲٦‎») تُحوَّل قبل المطابقة */
+  const s = String(v).replace(/[\u0660-\u0669\u06F0-\u06F9]/g, c => AR_DIGITS[c])
+                     .replace(/[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g, '').trim();
   let m = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})/);      // DD-MM-YYYY
   if (m) return mk(+m[3], +m[2], +m[1]);
   m = s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/);          // YYYY-MM-DD
@@ -163,6 +165,11 @@ function scanSheet(rows) {
 /* ---------- تصنيف المصروفات ---------- */
 const EXPENSE_RULES = [
   { cat: 'أتعاب أطباء',      group: 'متغيّر', re: /^اتعاب\s*(د|دكتور|دكتوره|طبيب)?\s*\/?\s*/ , doctor: true },
+  /* أسماء حسابات السيستم نفسها (تقرير «الإيراد اليومي»): الاسم وحده يكفي للتصنيف */
+  { cat: 'أتعاب أطباء',      group: 'متغيّر', re: /^د\s*[\/\\.]\s*\S|^دكتور|اطباء الطوار|^طبيب الطوار/, doctor: true },
+  { cat: 'عمولات منصات الحجز', group: 'متغيّر', re: /^حساب\s+(فيزيت|كلينيد|اكشف)/ },
+  { cat: 'مسحوبات شركاء',    group: 'غير تشغيلي', re: /جار[يى]\s*شريك|مسحوبات\s*شريك/ },
+  { cat: 'معامل وأشعة خارجية', group: 'متغيّر', re: /مصاريف\s*(معمل|معامل|الاشعه)|مصروفات\s*(معمل|معامل|الاشعه)/ },
   { cat: 'مرتبات وأجور',     group: 'ثابت',  re: /مرتب|رواتب|اجور|حوافز|مكافا|بدلات|تامينات اجتماعي/ },
   { cat: 'إيجارات',          group: 'ثابت',  re: /ايجار/ },
   { cat: 'كهرباء ومرافق',    group: 'شبه ثابت', re: /كهرب|مياه|غاز|تليفون|هاتف|انترنت|مرافق|فاتوره ميا/ },
@@ -190,8 +197,10 @@ function classifyExpense(bayanRaw, notesRaw) {
       if (r.doctor) {
         doctor = cleanAr(bayanRaw || notesRaw)
                  .replace(/^\s*اتعاب\s*(د|دكتور[ةه]?|طبيب)?\s*[\/.]?\s*/i, '')
+                 .replace(/^\s*د\s*[\/\\.]\s*(?=\S)/, '')
                  .split(/\s+عن\s+الحال|\n/)[0].trim();
         if (!doctor) doctor = 'غير محدد';
+        if (/^اطباء الطوار|^طبيب الطوار/.test(normAr(doctor))) doctor = 'أطباء الطوارئ (مجمّع)';
       }
       return { cat: r.cat, group: r.group, doctor };
     }

@@ -890,11 +890,18 @@ function evaluate(A, cmp) {
   /* القواعد المالية كلها تُقاس نسبةً إلى الإيراد — بلا إيراد لا معنى لها */
   const financial = A.kpi.revenue > 0;
 
+  const RULE_NEEDS = { serviceConc: 'services', catConc: 'services', discountLoad: 'services',
+    discountOutliers: 'services', doctorDiscount: 'services', deptShare: 'services',
+    retention: 'patients', ticket: 'patients', patientConc: 'patients', noAR: 'patients',
+    noDoctorLink: 'doctors', doctorMargin: 'doctors', supplies: 'supplies',
+    weakDays: 'days', volatility: 'days', noTime: 'days', trendDown: 'days' };
   const risks = [];
   const expenseRules = ['margin','costRatio','breakEven','doctorFees','payroll','rent','fixedLoad','doctorConc','advances','supplies','unclassified','doctorMargin','deptShare','costSpike'];
   if (financial) RULES.forEach(r => {
     if (A.coverage && A.coverage.expenses === false && expenseRules.includes(r.id)) return;
     if (A.coverage && A.coverage.payments === false && r.id === 'cash') return;
+    /* قاعدة عامة: ما كان مصدره غير مقروء في الملف يُتخطّى بدل أن يُقاس على صفر */
+    if (A.coverage && RULE_NEEDS[r.id] && A.coverage[RULE_NEEDS[r.id]] === false) return;
     let res;
     try { res = r.test(ctx); } catch (e) { res = false; }
     if (res) risks.push(Object.assign({ id: r.id, area: r.area, sevAr: SEV_AR[res.sev] }, res));
@@ -953,7 +960,12 @@ function evaluate(A, cmp) {
 
   /* ملخص تنفيذي */
   const crit = risks.filter(r => r.sev === 'critical' || r.sev === 'high');
-  const upside = risks.reduce((s, r) => s + (r.impact || 0), 0);
+  /* تقدير لا مبلغ مضمون: بنود الحوكمة ليست «مالاً يُسترد»، والمخاطر المتشابهة في المجال نفسه
+     (مثلاً تركّز الخدمة وتركّز الفئة) تقيس الإيراد نفسه فنأخذ الأكبر منها فقط */
+  const bestByArea = {};
+  risks.forEach(r => { if (r.area === 'الحوكمة') return;
+    bestByArea[r.area] = Math.max(bestByArea[r.area] || 0, r.impact || 0); });
+  const upside = Object.keys(bestByArea).reduce((s, k) => s + bestByArea[k], 0);
   const summary = (financial ? buildSummary(ctx, risks, crit, upside) : opsSummary(ctx, risks, crit, INS))
                     .concat(financial ? (INS.blocks || []) : []);
 
@@ -1007,15 +1019,19 @@ function buildSummary(c, risks, crit, upside) {
     h: 'أين يقف المركز',
     p: `خلال ${cnt(A.meta.spanDays,'يوم واحد','يومين','أيام','يوماً')} (${A.meta.rangeLabel}) حقّق المركز إيراداً قدره ${cur(k.revenue)} ` +
        (A.coverage && A.coverage.expenses === false ? 'قيمة خدمات مسجّلة؛ لا تتوفر بيانات المصروفات لحساب الصافي أو الهامش. ' : `مقابل منصرف ${cur(k.cost)}، بصافي ${cur(k.net)} وهامش ${pc(k.margin)}. `) +
-       `خدم ${cnt(k.patients,'مريضاً واحداً','مريضين','مرضى','مريضاً')} عبر ${cnt(k.receipts,'إيصال واحد','إيصالين','إيصالات','إيصالاً')} و${cnt(k.lineItems,'بند خدمة واحد','بندي خدمة','بنود خدمة','بند خدمة')}، ` +
-       `بمتوسط ${cur(k.avgTicket)} للإيصال و${cur(k.avgPerPatient)} للمريض.`
+       (A.coverage && A.coverage.patients === false
+         ? 'عدد المرضى والإيصالات غير متاح في هذا المصدر؛ ارفع تقرير بيان الحالة أو الخزينة للحصول عليه.'
+         : `خدم ${cnt(k.patients,'مريضاً واحداً','مريضين','مرضى','مريضاً')} عبر ${cnt(k.receipts,'إيصال واحد','إيصالين','إيصالات','إيصالاً')} و${cnt(k.lineItems,'بند خدمة واحد','بندي خدمة','بنود خدمة','بند خدمة')}، ` +
+           `بمتوسط ${cur(k.avgTicket)} للإيصال و${cur(k.avgPerPatient)} للمريض.`)
   });
   lines.push({
     h: 'من أين يأتي الإيراد',
-    p: `أعلى فئة «${A.serviceCats[0] ? A.serviceCats[0].key : '—'}» بنسبة ${A.serviceCats[0] ? pc(A.serviceCats[0].pct) : '—'}، ` +
-       `وأعلى خدمة مفردة «${A.services[0] ? A.services[0].key : '—'}» بنسبة ${pc(k.topServiceShare)}. ` +
+    p: (A.coverage && A.coverage.services === false
+         ? 'تفصيل الإيراد حسب الخدمة غير مقروء في هذا المصدر (راجع تبويب التقرير). '
+         : `أعلى فئة «${A.serviceCats[0] ? A.serviceCats[0].key : '—'}» بنسبة ${A.serviceCats[0] ? pc(A.serviceCats[0].pct) : '—'}، ` +
+           `وأعلى خدمة مفردة «${A.services[0] ? A.services[0].key : '—'}» بنسبة ${pc(k.topServiceShare)}. `) +
        (A.coverage && A.coverage.payments === false ? 'طريقة التحصيل غير متاحة في هذا المصدر. ' : `التحصيل: ${A.methods.map(m => `${m.method} ${pc(m.pct)}`).join('، ')}. `) +
-       `أقوى يوم ${bestDow(A)} وأضعفه ${worstDow(A)}.`
+       (A.coverage && A.coverage.days === false ? '' : `أقوى يوم ${bestDow(A)} وأضعفه ${worstDow(A)}.`)
   });
   lines.push({
     h: 'إلى أين يذهب المنصرف',
@@ -1027,7 +1043,7 @@ function buildSummary(c, risks, crit, upside) {
     h: 'الخلاصة',
     p: crit.length
        ? `${cnt(crit.length, 'مخاطرة واحدة', 'مخاطرتان', 'مخاطر', 'مخاطرة')} ذات أولوية عالية تتصدرها «${crit[0].title}». ` +
-         `مجموع الفرصة المالية القابلة للاسترداد من معالجة كل المخاطر يقارب ${cur(upside)} في الفترة` +
+         `الأثر المالي التقديري لمعالجة المخاطر (بلا تكرار، وبدون بنود الحوكمة) يقارب ${cur(upside)} في الفترة` +
          (c.span ? `، أي نحو ${cur(upside * YEAR_FACTOR(c.span))} سنوياً.` : '.')
        : `لا توجد مخاطر عالية. المؤشرات ضمن النطاقات المستهدفة — ركّز على تثبيت الأداء وتوسيع القاعدة.`
   });

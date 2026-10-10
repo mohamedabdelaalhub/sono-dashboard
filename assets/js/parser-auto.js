@@ -139,20 +139,141 @@ function extract(rows, found, worksheet) {
   return out;
 }
 
-/* الفترة من ترويسة الورقة */
+/* ============================================================
+   «الإيراد اليومي»: ورقة واحدة فيها عدة جداول متجاورة
+   (طرق الدفع · الخدمات · المصروفات بالبند · الأطباء والحالات · الملخص والأرصدة).
+   المحرّك العام يقرأ جدولاً واحداً، وهذه الدالة تقرأ الباقي بتوقيع ترويسة كل جدول.
+   لا تُخمَّن أعمدة: كل جدول يُقبل فقط إن وُجدت ترويسته كاملة.
+   ============================================================ */
+const SUMMARY_LABELS = {
+  revenueTotal: 'اجمالي الايرادات', expenseTotal: 'اجمالي المصروفات', net: 'الصافي',
+  opening: 'رصيد ما قبله', closing: 'الرصيد الحالي',
+  bankTotal: 'اجمالي الائتمان والحوالات البنكيه', feesTotal: 'اجمالي الرسوم شامله الضريبه'
+};
+const DEPT_RE = /^(خدمات|المعمل|معمل|الاشعه|اشعه)/;
+
+function dailySections(rows) {
+  const out = { services: [], doctors: [], expenses: [], summary: {},
+                servicesTotal: null, doctorsTotal: null };
+  const cells = r => (rows[r] || []).map(c => norm(c));
+  const colOf = (arr, label, from) => {
+    const i = arr.indexOf(norm(label), from || 0);
+    return i;
+  };
+  const nearest = (arr, label, anchor) => {
+    let best = -1;
+    arr.forEach((c, j) => { if (c === norm(label) && (best < 0 || Math.abs(j - anchor) < Math.abs(best - anchor))) best = j; });
+    return best;
+  };
+  const isTotal = c => TOTAL_RE.test(norm(c));
+  const text = (row, c) => P().cleanAr((row || [])[c]);
+  const money = (row, c) => P().toNum((row || [])[c]);
+
+  for (let r = 0; r < rows.length; r++) {
+    const h = cells(r);
+    if (!h.some(Boolean)) continue;
+
+    /* جدول الخدمات */
+    const cs = colOf(h, 'الخدمة');
+    if (cs >= 0 && h.includes(norm('تكلفة الخدمات')) && !out.services.length) {
+      const cv = nearest(h, 'القيمة', cs), cc = nearest(h, 'تكلفة الخدمات', cs);
+      if (cv >= 0) {
+        /* صفوف الخدمات تتخلّلها صفوف ملخص في أعمدة أخرى، فلا نتوقف عند الفراغ بل عند صف الإجمالي */
+        for (let k = r + 1; k < rows.length; k++) {
+          const row = rows[k] || [];
+          if (isTotal(row[cs])) { out.servicesTotal = { value: money(row, cv), cost: cc >= 0 ? money(row, cc) : null }; break; }
+          const name = text(row, cs), val = money(row, cv);
+          if (name && val !== null) out.services.push({ name, value: val, cost: cc >= 0 ? (money(row, cc) || 0) : null });
+        }
+      }
+    }
+
+    /* جدول الأطباء والحالات */
+    const cd = colOf(h, 'الدكتور');
+    if (cd >= 0 && h.includes(norm('عدد الحالات')) && h.includes(norm('القيمة المحصلة')) && !out.doctors.length) {
+      const cn = nearest(h, 'عدد الحالات', cd), cc = nearest(h, 'القيمة المحصلة', cd), cp = nearest(h, 'نسبة الدكتور', cd);
+      let gap = 0;
+      for (let k = r + 1; k < rows.length; k++) {
+        const row = rows[k] || [];
+        if (isTotal(row[cd])) {
+          out.doctorsTotal = { cases: money(row, cn), collected: money(row, cc), share: cp >= 0 ? money(row, cp) : null };
+          break;
+        }
+        const name = text(row, cd);
+        if (!name) { if (++gap > 1) break; continue; }
+        gap = 0;
+        out.doctors.push({ name, cases: money(row, cn) || 0, collected: money(row, cc) || 0,
+                           share: cp >= 0 ? (money(row, cp) || 0) : 0, dept: DEPT_RE.test(norm(name)) });
+      }
+    }
+
+    /* جدول المصروفات بالبند (الملاحظات لا تُقرأ: قد تحمل أسماء مرضى) */
+    const ci = colOf(h, 'المصروف');
+    if (ci >= 0 && h.includes(norm('الطريقة')) && !out.expenses.length) {
+      const cv = nearest(h, 'القيمة', ci);
+      if (cv >= 0) {
+        let gap = 0;
+        for (let k = r + 1; k < rows.length; k++) {
+          const row = rows[k] || [];
+          const item = text(row, ci), val = money(row, cv);
+          if (!item && val === null) { if (++gap > 1) break; continue; }
+          gap = 0;
+          if (item && val !== null) out.expenses.push({ item, amount: val });
+        }
+      }
+    }
+  }
+
+  /* الملخص والأرصدة: رقم بجوار تسمية معروفة */
+  for (let r = 0; r < Math.min(rows.length, 80); r++) {
+    const row = rows[r] || [], h = cells(r);
+    Object.keys(SUMMARY_LABELS).forEach(key => {
+      if (out.summary[key] !== undefined) return;
+      const i = h.indexOf(norm(SUMMARY_LABELS[key]));
+      if (i < 0) return;
+      let best = null;
+      row.forEach((c, j) => {
+        if (j === i || Math.abs(j - i) > 12) return;
+        const n = P().toNum(c);
+        if (n === null || typeof c === 'string' && /[^\d.,\-\s٠-٩۰-۹]/.test(c)) return;
+        if (!best || Math.abs(j - i) < Math.abs(best.j - i) || (Math.abs(j - i) === Math.abs(best.j - i) && j < i)) best = { n, j };
+      });
+      if (best) out.summary[key] = best.n;
+    });
+  }
+  return out;
+}
+
+/* الفترة من ترويسة الورقة
+   التقارير العربية تُقرأ من اليمين: التاريخ يقع يسار كلمة «من»/«إلى» (أو في الصف التالي)،
+   لذلك نبحث أولاً يساراً بمسافة محدودة ثم في الصف التالي ثم يميناً. */
 function findPeriod(rows) {
   let from = null, to = null;
+  const REACH = 15;
   for (let r = 0; r < Math.min(rows.length, 14); r++) {
     const row = rows[r] || [];
     for (let i = 0; i < row.length; i++) {
       const t = norm(row[i]);
       if (t !== 'من' && t !== 'الي' && t !== 'الى') continue;
-      let d = null;
-      for (let j = i - 1; j >= Math.max(0, i - 10) && !d; j--) d = P().parseDate(row[j]);
-      for (let j = i + 1; j <= Math.min(row.length - 1, i + 10) && !d; j++) d = P().parseDate(row[j]);
-      if (d) { if (t === 'من') from = from || d; else to = to || d; }
+      let hit = null;
+      /* يسار العلامة في نفس الصف: أقرب تاريخ */
+      const near = (rw, lo, hi) => {
+        let b = null;
+        (rw || []).forEach((c, j) => {
+          if (j < lo || j > hi) return;
+          const d = P().parseDate(c);
+          if (d && (!b || Math.abs(j - i) < Math.abs(b.j - i))) b = { d, j };
+        });
+        return b;
+      };
+      hit = near(rows[r], Math.max(0, i - REACH), i - 1) ||
+            near(rows[r + 1], Math.max(0, i - REACH), i + 2) ||
+            near(rows[r], i + 1, i + REACH) ||
+            near(rows[r + 1], i + 1, i + REACH);
+      if (hit) { if (t === 'من') from = from || hit.d; else to = to || hit.d; }
     }
   }
+  if (from && to && from > to) { const x = from; from = to; to = x; }
   return { from, to };
 }
 
@@ -172,6 +293,7 @@ function parseAll(wb, fileName) {
     if (!found) continue;
     const data = extract(rows, found, ws);
     const warnings = [];
+    const sections = found.def.id === 'dailyRevenue' ? dailySections(rows) : null;
     if (found.def.id === 'statusDetail') {
       const totalIndex = found.map.total;
       const lastRow = rows.slice().reverse().find(row => (row || []).some(v => v !== null && v !== '')) || [];
@@ -183,7 +305,7 @@ function parseAll(wb, fileName) {
     if (!data.length && !found.def.allowEmpty) continue;
     out.push({
       id: found.def.id, name: found.def.name, group: found.def.group,
-      info: found.def.info, rows: data, period: findPeriod(rows),
+      info: found.def.info, rows: data, period: findPeriod(rows), sections,
       warnings, columns: Object.keys(found.map), file: fileName, sheet: sn,
       confidence: found.score, empty: !data.length
     });
@@ -196,6 +318,6 @@ function parse(wb, fileName) {
   return parseAll(wb, fileName)[0] || null;
 }
 
-root.SonoAuto = { parse, parseAll, detect, extract, findPeriod };
+root.SonoAuto = { parse, parseAll, detect, extract, findPeriod, dailySections };
 })(window);
 
