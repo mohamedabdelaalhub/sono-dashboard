@@ -43,13 +43,13 @@ begin
   'recommendations',public.operations_export_items(r.payload#>'{evaluation,recos}','recommendations'),
   'plan',public.operations_export_items(r.payload#>'{evaluation,plan}','plan')) into core;
  if jsonb_array_length(core->'risks')>200 or jsonb_array_length(core->'plan')>300 or length(core::text)>300000 then raise exception 'التقرير يتجاوز حد الإرسال'; end if;
- fp:=encode(digest(core::text,'sha256'),'hex');
+ fp:=encode(extensions.digest(core::text,'sha256'),'hex');
  s:=core||jsonb_build_object('fingerprint',fp,'title',left(r.title,160));
  insert into public.operations_outbox(fingerprint,report_id,snapshot,approved_by) values(fp,r.id,s,auth.uid()) on conflict(fingerprint) do nothing;
  select * into result from public.operations_outbox where fingerprint=fp;
  return jsonb_build_object('id',result.id,'delivered',result.delivered_at is not null,'fingerprint',fp);
 end $$;
-revoke all on function public.operations_enqueue(uuid,text,text) from public;
+revoke all on function public.operations_enqueue(uuid,text,text) from public,anon;
 grant execute on function public.operations_enqueue(uuid,text,text) to authenticated;
 -- Claims use fencing so an expired worker cannot overwrite a newer retry.
 create or replace function public.operations_delivery_claim(p_id uuid default null)
