@@ -3,3 +3,7 @@ project_id = "sono-dashboard"
 [functions.dashboard-ai]
 verify_jwt = true
 entrypoint = "./functions/dashboard-ai/index.ts"
+
+[functions.operations-relay]
+# Authenticated management session OR a server-side cron secret, verified inside.
+verify_jwt = false

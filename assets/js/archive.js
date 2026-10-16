@@ -25,6 +25,8 @@ function buildPayload(A, E, cmp, files) {
       to        : A.meta.to   ? root.SonoParser.iso(A.meta.to)   : null,
       files     : files || []
     },
+    coverage   : clone(A.coverage || {}),
+    coverageNotice: A.coverageNotice || "",
     kpi        : clone(A.kpi),
     daily      : clone(A.daily),
     weekly     : clone(A.weekly),
@@ -63,6 +65,7 @@ function restorePayload(p) {
       to  : p.meta.to   ? new Date(p.meta.to)   : null
     },
     ins: root.SonoPrivacy.insights(p.ins), financialSources: p.financialSources || [], excludedSources: p.excludedSources || [], dupWarn: p.dupWarn || null, periodExcluded: p.periodExcluded || [],
+    coverage:p.coverage || {}, coverageNotice:p.coverageNotice || "",
     kpi: p.kpi, daily: p.daily || [], weekly: p.weekly || [], dowAgg: p.dowAgg || [],
     methods: p.methods || [], services: p.services || [], serviceCats: p.serviceCats || [],
     top5Services: (p.services || []).slice(0, 5),
