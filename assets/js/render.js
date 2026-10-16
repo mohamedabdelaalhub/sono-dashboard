@@ -627,9 +627,11 @@ function renderPlan(el, A, E, ctx) {
           <label>&nbsp;</label><span class="who" id="plCount"></span></div>
       </div>
 
+      <p class="note">علامات الإنجاز في الجدول للمراجعة على جهازك. تكليف الموظفين ومتابعة مراحلهم بعد إرسال التقرير داخل نظام المهام.</p>
       <div id="plWrap"></div>
     </div>`;
 
+  if (root.SonoOperationsExport) root.SonoOperationsExport.mount(el, A, E, ctx);
   const wrap = document.getElementById('plWrap');
 
   function filtered() {

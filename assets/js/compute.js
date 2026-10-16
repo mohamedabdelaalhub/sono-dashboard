@@ -9,7 +9,7 @@ function stop(){
 function start(){
   if(worker||failed||!root.Worker)return worker;
   try{
-    worker=new root.Worker('assets/js/compute-worker.js?v=54');
+    worker=new root.Worker('assets/js/compute-worker.js?v=operations-20261017-1');
     worker.onmessage=e=>{
       const j=jobs.get(e.data.id);if(!j)return;
       clearTimeout(j.timer);jobs.delete(e.data.id);
