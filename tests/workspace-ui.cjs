@@ -1,0 +1,30 @@
+const {JSDOM,VirtualConsole}=require('jsdom'),fs=require('fs'),assert=require('node:assert/strict');
+const base=__dirname+'/../',tick=()=>new Promise(r=>setTimeout(r,0));
+(async()=>{
+ const errors=[],vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));
+ const dom=new JSDOM(fs.readFileSync(base+'index.html','utf8'),{runScripts:'outside-only',url:'https://test.invalid',virtualConsole:vc}),w=dom.window,d=w.document;
+ w.scrollTo=()=>{};w.HTMLElement.prototype.scrollIntoView=function(){};w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};
+ w.SonoAuth={user:()=>({role:'سوبر أدمن'})};w.SONO_CONFIG={};
+ for(const name of ['parser','charts','roles','analytics','rules','render','workspace-ui'])w.eval(fs.readFileSync(base+'assets/js/'+name+'.js','utf8'));
+ const income=Array.from({length:60},(_,i)=>({date:'2026-09-'+String(i%28+1).padStart(2,'0'),amount:100+i,receipt:'R'+i,patient:'P'+i,services:['خدمة '+i],method:'نقدي'}));
+ const expense=[{date:'2026-09-01',amount:50,bayan:'أتعاب د/ تجربة',doctor:'تجربة',cat:'أتعاب الأطباء',group:'متغير'}];
+ const A=w.SonoAnalytics.analyze(income,expense,{rangeLabel:'سبتمبر 2026'}),E=w.SonoRules.evaluate(A,null);let current='sum';
+ w.SonoApp={state:{A,E,income,files:[{name:'synthetic.xlsx'}]},renderTab:render};
+ function render(t){current=t;d.querySelectorAll('#tabs [data-t]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.t===t)));d.querySelectorAll('.tabpane').forEach(n=>n.classList.toggle('hide',n.id!=='pane-'+t));w.SonoWorkspace.refresh();}
+ d.getElementById('app').classList.remove('hide');d.getElementById('tabs').classList.remove('hide');d.getElementById('tabAmida').classList.add('hide');d.querySelectorAll('#tabs [data-t]').forEach(b=>b.onclick=()=>render(b.dataset.t));
+ w.SonoWorkspace.init();w.SonoRender.renderSummary(d.getElementById('pane-sum'),A,E,null);w.SonoWorkspace.decorate(d.getElementById('pane-sum'),A);render('sum');await tick();
+ assert.equal(d.querySelectorAll('.rw-metric').length,6);assert(d.querySelector('.rw-sources').textContent.includes('مصادر'));assert.equal(d.querySelectorAll('.rw-export #btnXlsx').length,1);assert.equal(d.querySelectorAll('.topact').length,0,'one export location');
+ d.querySelector('[data-group=performance]').click();assert.equal(current,'kpi');assert.equal(d.querySelector('[data-t=kpi]').hidden,false);assert.equal(d.querySelector('[data-t=plan]').hidden,true);assert.equal(d.getElementById('tabAmida').classList.contains('hide'),true,'group changes do not grant a sensitive tab');
+ w.SonoRender.renderData(d.getElementById('pane-data'),A,E);w.SonoWorkspace.decorate(d.getElementById('pane-data'),A);render('data');
+ const service=Array.from(d.querySelectorAll('#pane-data table')).find(t=>t.tHead.textContent.includes('الخدمة')),bar=service.parentElement.previousElementSibling;
+ assert.equal(Array.from(service.tBodies[0].rows).filter(r=>!r.hidden).length,25);bar.querySelector('[data-next]').click();assert.equal(Array.from(service.tBodies[0].rows).filter(r=>!r.hidden).length,25);
+ const input=bar.querySelector('input');input.value='خدمة 59';input.dispatchEvent(new w.Event('input'));assert.equal(Array.from(service.tBodies[0].rows).filter(r=>!r.hidden).length,1);
+ const before=service.parentElement,link=Array.from(service.tBodies[0].rows).find(r=>!r.hidden).querySelector('.detailLink');link.click();assert(d.getElementById('main').classList.contains('rw-detail-open'));assert(d.querySelector('.rw-detail').textContent.includes('خدمة 59'));d.querySelector('.rw-detail [data-close]').click();assert(!d.querySelector('.rw-detail'));assert.equal(input.value,'خدمة 59');assert.equal(service.parentElement,before,'original filtered DOM preserved');assert.equal(d.activeElement,link);
+ const clone=w.SonoWorkspace.exportClone(service);assert.equal(clone.tBodies[0].rows.length,1);assert.equal(clone.tBodies[0].rows[0].hidden,false);assert.equal(clone.querySelectorAll('.rw-mobile-cell').length,0,'mobile controls do not leak into exports');
+ input.value='';input.dispatchEvent(new w.Event('input'));assert.equal(w.SonoWorkspace.exportClone(service).tBodies[0].rows.length,60,'exports include all matching pages');
+ service.tBodies[0].rows[0].querySelector('.rw-row-view').click();assert(d.querySelector('dialog').textContent.includes('الإيراد'));d.querySelector('dialog button').click();assert.equal(d.querySelector('dialog'),null);
+ A.coverage={expenses:false,payments:false,patients:false};A.kpi.cost=0;A.kpi.net=100;w.SonoRender.renderSummary(d.getElementById('pane-sum'),A,E,null);assert.equal(d.querySelectorAll('.rw-metric')[1].querySelector('strong').textContent,'غير متاح');assert.equal(d.querySelectorAll('.rw-metric')[2].querySelector('strong').textContent,'غير متاح');assert(d.querySelector('.rw-summary').textContent.includes('ليست تحصيلًا'));
+ let approved=w.SonoWorkspace.confirmAction('حذف تقرير','تقرير تجريبي');assert.equal(d.activeElement,d.querySelector('[data-cancel]'));d.querySelector('[data-cancel]').click();assert.equal(await approved,false);approved=w.SonoWorkspace.confirmAction('حذف تقرير','تقرير تجريبي');d.querySelector('[data-confirm]').click();assert.equal(await approved,true);
+ const node=d.createElement('section');node.innerHTML='<button data-close>إغلاق</button>';w.SonoWorkspace.showDetail(node);w.SonoWorkspace.closeDetail(null,false);assert.equal(d.querySelector('.rw-detail'),null);
+ await tick();assert.deepEqual(errors,[]);dom.window.close();console.log('PASS workspace: grouped permissions, six summary cards, missing-data semantics, scoped tables/pagination/mobile details, filtered full-page exports and detail return state');
+})().catch(e=>{console.error(e);process.exit(1)});

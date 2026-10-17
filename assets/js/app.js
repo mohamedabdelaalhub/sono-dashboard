@@ -187,6 +187,7 @@ async function enterApp() {
   if (isAmidaInvestor()) renderTab('amida');
   if (RO.can(u, 'upload')) renderQuickView();
   initNotifCenter();
+  if(root.SonoWorkspace)root.SonoWorkspace.refresh();
 }
 
 /* ---------- مركز الإشعارات: جرس بجانب اسم المستخدم للسوبر أدمن والمدير ---------- */
@@ -360,7 +361,7 @@ function initUpload() {
   ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
   drop.addEventListener('drop', e => { if (gate('upload')) handleFiles(e.dataTransfer.files); });
   file.addEventListener('change', e => { handleFiles(e.target.files); e.target.value = ''; });
-  $('btnClear').addEventListener('click', clearAll);
+  $('btnClear').addEventListener('click', async()=>{if(!root.SonoWorkspace||await root.SonoWorkspace.confirmAction('مسح ملفات التحليل','إزالة الملفات المرفوعة من التحليل الحالي؟ التقارير المحفوظة في الأرشيف تبقى كما هي.'))clearAll();});
 }
 
 function clearAll() {
@@ -588,6 +589,7 @@ function currentSlice() {
 const analysisCache = new Map();
 let analysisEpoch=0;
 function applyPeriod() {
+  if(root.SonoWorkspace)root.SonoWorkspace.closeDetail(null,false);
   if (!state.income.length && !state.expense.length && !(state.status || []).length
       && !((state.ins || {}).has)) return;
   busy(true, 'جارٍ التحليل…');
@@ -761,6 +763,7 @@ function initTabs() {
 }
 
 function renderTab(t, force) {
+  if(root.SonoWorkspace)root.SonoWorkspace.closeDetail(null,false);
   const u = AU.user();
   if (t !== 'cmp' && !isTabAllowed(t)) t = firstAllowedTab();
   if (t === 'sch') {
@@ -810,6 +813,7 @@ function markTabs(t) {
   document.querySelectorAll('nav.tabs button').forEach(b =>
     b.setAttribute('aria-selected', b.dataset.t === t ? 'true' : 'false'));
   applyTabAccessFilter();
+  if(root.SonoWorkspace)root.SonoWorkspace.refresh();
 }
 function showPane(t) {
   Object.keys(PANES).forEach(k => $(PANES[k]).classList.toggle('hide', k !== t));
@@ -944,6 +948,7 @@ function draw(t, el) {
   const f = D[t];
   if (!f) return;
   f();
+  if(root.SonoWorkspace)root.SonoWorkspace.decorate(el,state.A);
   RENDERED[t] = 1;
 }
 
@@ -1097,6 +1102,7 @@ function busy(on, msg) {
    ============================================================ */
 (async function boot() {
   root.SonoBrand.mount();
+  if(root.SonoWorkspace)root.SonoWorkspace.init();
   initLanding(); initUpload(); initFilters(); initTabs(); initExport(); initPassword(); AD.init();
 
   /* هل فتح المستخدم رابط تعيين كلمة السر من بريده؟ */
