@@ -178,6 +178,7 @@ function insDraw(A) {
         if(e.key === 'Tab') { const buttons=[...box.querySelectorAll('button')]; const first=buttons[0],last=buttons[buttons.length-1]; if(e.shiftKey && document.activeElement===first){e.preventDefault();last.focus();} else if(!e.shiftKey && document.activeElement===last){e.preventDefault();first.focus();} }
       };
       box.querySelector('[data-close]').focus();
+      if(root.SonoWorkspace)root.SonoWorkspace.showDetail(box,button);
     };
   });
 
@@ -204,6 +205,7 @@ function insDraw(A) {
       document.body.appendChild(box);
       box.addEventListener('click', ev => { if (ev.target === box) box.remove(); });
       document.getElementById('errDetailClose').addEventListener('click', () => box.remove());
+      if(root.SonoWorkspace)root.SonoWorkspace.showDetail(box,a);
     });
   });
 }
@@ -282,6 +284,7 @@ function renderSummary(el, A, E, cmp) {
       </div>
     </div>`;
 
+  if(root.SonoWorkspace)root.SonoWorkspace.enhanceSummary(el,A,E,cmp);
   if (E.score !== null) C.gauge(document.getElementById('gg'), E.score); else document.getElementById('gg').textContent = 'تقييم مالي غير متاح';
   if (!fin) return;
   drawRibbon(A, 'd');
@@ -317,6 +320,7 @@ function showExpDetail(r) {
         <td>${esc(x.date || '—')}</td><td>${esc(x.bayan || '—')}</td><td class="n">${fmt(x.amount)}</td></tr>`).join('')
         : '<tr><td colspan="3" style="color:var(--muted)">لا توجد صفوف تفصيلية لهذه الفئة.</td></tr>'}</tbody>
     </table></div>`;
+  if(root.SonoWorkspace){const html=el.innerHTML;el.classList.add('hide');root.SonoWorkspace.openContent('مصروفات '+r.label,exportButtons()+html);}
 }
 
 /* ============================================================
@@ -1106,11 +1110,12 @@ async function renderArchive(el, state, handlers) {
       if (op) op.onclick = () => handlers.open(id);
       const dl = tr.querySelector('.arDel');
       if (dl) dl.onclick = async () => {
-        if (!confirm('حذف هذا التقرير من الأرشيف نهائياً؟')) return;
+        if(root.SonoWorkspace){if(!await root.SonoWorkspace.confirmAction('حذف التقرير', 'حذف «'+(tr.querySelector('td:nth-child(2)')?.textContent||'التقرير المحدد')+'» من الأرشيف نهائيًا؟'))return;}else if (!confirm('حذف هذا التقرير من الأرشيف نهائياً؟')) return;
         try { await AR.remove(id); await fill(); }
         catch (e) { listEl.insertAdjacentHTML('afterbegin', `<div class="err">${esc(e.message)}</div>`); }
       };
     });
+    if(root.SonoWorkspace)root.SonoWorkspace.decorate(listEl);
   }
 
   const sv = document.getElementById('arSave');

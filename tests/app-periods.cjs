@@ -4,8 +4,9 @@ const base = path.resolve(__dirname, '..');
 const dom = new JSDOM(fs.readFileSync(base + '/index.html', 'utf8'), {url:'https://example.test/',runScripts:'outside-only'});
 const w = dom.window, d = w.document, errors = [];
 w.alert = m => errors.push(m);
+w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};
 const load = name => w.eval(fs.readFileSync(base + '/assets/js/' + name + '.js', 'utf8'));
-for (const name of ['parser','analytics','reports','parser-auto','adapters','data-integrity','privacy','insights','rules','roles','schedule','compute-logic','compute','charts','render','render-reports']) load(name);
+for (const name of ['parser','analytics','reports','parser-auto','adapters','data-integrity','privacy','insights','rules','roles','schedule','compute-logic','compute','charts','render','render-reports','workspace-ui']) load(name);
 w.SonoAuth = {mode:()=> 'local', user:()=>({id:'test',role:'سوبر أدمن'}),restore:async()=>null,isRecovery:()=>false};
 w.SonoBrand = {mount(){}};
 w.SonoAdmins = {init(){}};
@@ -24,6 +25,7 @@ const dataset = {id:'statusDetail',name:'بيان تفصيلي',file:'details.xl
   const app=w.SonoApp,s=app.state;
   s.files=[{kind:'treasury',name:'cash.xlsx',income:[income('2026-08-01',100),income('2026-09-01',200)],expense:[expense],period:period('2026-08-01','2026-09-30')},{kind:'report',name:'details.xlsx',sourceFile:'details.xlsx',sourceSheet:'Sheet1',reportName:'بيان',income:[],expense:[],rows:2}];
   s.datasets=[dataset];app.rebuild();await pause();change('gran','all');await pause();
+  assert.equal(d.querySelectorAll('.rw-metric').length,6,'workspace summary mounted through the real app');
   assert.equal(s.A.kpi.revenue,300); // alternate representation is excluded
   assert(d.getElementById('pane-sum').textContent.includes('استُبعد'));
   change('gran','month');await pause();
@@ -64,6 +66,7 @@ const dataset = {id:'statusDetail',name:'بيان تفصيلي',file:'details.xl
   assert.equal(s.A.kpi.revenue,17);assert.equal(s.files.length,0);assert.equal(s.datasets.length,0);assert.equal(s.activeDatasets.length,0);
   d.getElementById('btnXlsx').click();await pause();assert.equal(exported.length,0);
   d.getElementById('btnClear').click();
+  d.querySelector('[data-confirm]').click();await pause();
   assert.equal(s.A,null);assert.equal(s.ins,null);assert.equal(s.datasets.length,0);
   assert.deepEqual(errors,[]);
   console.log('PASS app UI period changes, summary/report rendering, scoped export, fee coverage, file removal and clear');

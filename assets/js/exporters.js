@@ -235,7 +235,7 @@ async function toPdfFromNodes(nodes, opts) {
   host.className = 'pdf-capture';
   host.style.cssText = 'position:absolute;left:-10000px;top:0;width:1120px;background:#fff;padding:26px';
   host.innerHTML = header(opts) +
-    list.map(n => `<div style="margin-bottom:18px">${n.innerHTML}</div>`).join('') +
+    list.map(n => `<div style="margin-bottom:18px">${root.SonoWorkspace?root.SonoWorkspace.exportClone(n).innerHTML:n.innerHTML}</div>`).join('') +
     footer(opts);
   document.body.appendChild(host);
 
@@ -511,6 +511,7 @@ function planXlsx(plan, ctx, owner) {
 
 async function tableExport(table, title, kind) {
   if (!root.SonoRoles || !root.SonoAuth || !root.SonoRoles.can(root.SonoAuth.user(), 'export')) throw new Error('لا توجد صلاحية للتصدير');
+  if(root.SonoWorkspace)table=root.SonoWorkspace.exportClone(table);
   const safeName=title.replace(/[\/\\:*?"<>|]/g,'-').slice(0,100);
   if(kind==='xlsx') {
     const rows=[...table.rows].map(row=>[...row.cells].map(cell=>cell.textContent.replace(/⇅/g,'').trim()));
