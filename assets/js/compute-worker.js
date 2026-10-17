@@ -1,6 +1,6 @@
 'use strict';
 self.window=self;
-importScripts('parser.js?v=revenue-workspace-20261017-1','parser-status.js?v=revenue-workspace-20261017-1','parser-meta.js?v=revenue-workspace-20261017-1','parser-auto.js?v=revenue-workspace-20261017-1','schedule.js?v=revenue-workspace-20261017-1','analytics.js?v=revenue-workspace-20261017-1','reports.js?v=revenue-workspace-20261017-1','data-integrity.js?v=revenue-workspace-20261017-1','privacy.js?v=revenue-workspace-20261017-1','insights.js?v=revenue-workspace-20261017-1','rules.js?v=revenue-workspace-20261017-1','compute-logic.js?v=revenue-workspace-20261017-1');
+importScripts('parser.js?v=revenue-workspace-20261017-2','parser-status.js?v=revenue-workspace-20261017-2','parser-meta.js?v=revenue-workspace-20261017-2','parser-auto.js?v=revenue-workspace-20261017-2','schedule.js?v=revenue-workspace-20261017-2','analytics.js?v=revenue-workspace-20261017-2','reports.js?v=revenue-workspace-20261017-2','data-integrity.js?v=revenue-workspace-20261017-2','privacy.js?v=revenue-workspace-20261017-2','insights.js?v=revenue-workspace-20261017-2','rules.js?v=revenue-workspace-20261017-2','compute-logic.js?v=revenue-workspace-20261017-2');
 self.onmessage=function(e){
   const {id,task,payload}=e.data;
   try{

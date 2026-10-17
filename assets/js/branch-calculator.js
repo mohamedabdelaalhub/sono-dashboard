@@ -32,7 +32,10 @@
     if (!tabs || document.getElementById('branchCalcBtn')) return;
     const btn = document.createElement('button');
     btn.id = 'branchCalcBtn'; btn.type = 'button'; btn.textContent = 'حاسبة إنشاء فرع جديد';
+    btn.dataset.rwGroup = 'tools';
+    btn.hidden = true;
     tabs.appendChild(btn);
+    window.SonoWorkspace?.refresh();
     const modal = document.createElement('div');
     modal.id = 'branchCalcModal'; modal.className = 'modal hide';
     modal.setAttribute('role','dialog');
