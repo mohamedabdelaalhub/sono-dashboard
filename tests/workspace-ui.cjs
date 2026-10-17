@@ -13,6 +13,10 @@ const base=__dirname+'/../',tick=()=>new Promise(r=>setTimeout(r,0));
  function render(t){current=t;d.querySelectorAll('#tabs [data-t]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.t===t)));d.querySelectorAll('.tabpane').forEach(n=>n.classList.toggle('hide',n.id!=='pane-'+t));w.SonoWorkspace.refresh();}
  d.getElementById('app').classList.remove('hide');d.getElementById('tabs').classList.remove('hide');d.getElementById('tabAmida').classList.add('hide');d.querySelectorAll('#tabs [data-t]').forEach(b=>b.onclick=()=>render(b.dataset.t));
  w.SonoWorkspace.init();w.SonoRender.renderSummary(d.getElementById('pane-sum'),A,E,null);w.SonoWorkspace.decorate(d.getElementById('pane-sum'),A);render('sum');await tick();
+ w.eval(fs.readFileSync(base+'assets/js/branch-calculator.js','utf8'));await tick();
+ const calculator=d.getElementById('branchCalcBtn');assert(calculator);assert.equal(calculator.hidden,true,'calculator starts hidden outside administration');
+ d.querySelector('[data-group=tools]').click();assert.equal(calculator.hidden,false,'calculator appears in administration');assert.equal(d.querySelectorAll('#branchCalcBtn').length,1);
+ d.querySelector('[data-group=summary]').click();assert.equal(calculator.hidden,true,'calculator leaves with administration');
  assert.equal(d.querySelectorAll('.rw-metric').length,6);assert(d.querySelector('.rw-sources').textContent.includes('مصادر'));assert.equal(d.querySelectorAll('.rw-export #btnXlsx').length,1);assert.equal(d.querySelectorAll('.topact').length,0,'one export location');
  d.querySelector('[data-group=performance]').click();assert.equal(current,'kpi');assert.equal(d.querySelector('[data-t=kpi]').hidden,false);assert.equal(d.querySelector('[data-t=plan]').hidden,true);assert.equal(d.getElementById('tabAmida').classList.contains('hide'),true,'group changes do not grant a sensitive tab');
  w.SonoRender.renderData(d.getElementById('pane-data'),A,E);w.SonoWorkspace.decorate(d.getElementById('pane-data'),A);render('data');
