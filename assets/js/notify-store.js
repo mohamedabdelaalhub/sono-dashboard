@@ -78,7 +78,7 @@ function subscribe(sb, onInsert) {
   if (!sb) return null;
   try {
     return sb.channel('notif-live')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' },
+      .on('postgres_changes', { event: 'INSERT', schema: ((root.SONO_CONFIG || {}).supabase || {}).schema || 'public', table: 'notifications' },
         payload => onInsert(payload.new))
       .subscribe();
   } catch (e) { return null; }

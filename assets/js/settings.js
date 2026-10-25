@@ -110,7 +110,7 @@ async function resolveKey(sb, isSuper) {
 function mapErr(m) {
   m = String(m || '');
   if (/relation .* does not exist|schema cache/i.test(m))
-    return 'جداول الإعدادات غير موجودة في Supabase. شغّل ملف supabase/setup.sql أولاً.';
+    return 'جداول الإعدادات غير متاحة. راجع تهيئة مخطط legacy_dashboard في مشروع Supabase الحالي.';
   if (/row-level security|violates/i.test(m))
     return 'ليست لديك صلاحية حفظ الإعدادات — هذه الصفحة للسوبر أدمن فقط.';
   return m;

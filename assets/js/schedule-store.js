@@ -7,7 +7,10 @@
 const AU = () => root.SonoAuth;
 const LS_KEY = 'sono.schedule.v1';
 
-function sb() { const a = AU(); return a && a.sb ? a.sb() : null; }
+function sb() {
+  const a = AU();
+  return a && a.client ? a.client() : a && a.sb ? a.sb() : null;
+}
 
 function localGet() {
   try { const t = localStorage.getItem(LS_KEY); return t ? JSON.parse(t) : null; }
@@ -62,7 +65,7 @@ async function save(sch, user) {
   if (error) {
     if (/relation .*clinic_schedule.* does not exist|schema cache/i.test(error.message))
       throw new Error('جدول clinic_schedule غير موجود في قاعدة البيانات. ' +
-        'شغّل ملف supabase/migration-schedule.sql مرة واحدة من SQL Editor. ' +
+        'راجع تهيئة مخطط legacy_dashboard في مشروع Supabase الحالي. ' +
         '(اتحفظت نسخة محلية على هذا المتصفح مؤقتاً.)');
     if (/row-level security|permission/i.test(error.message))
       throw new Error('صلاحية الحفظ للسوبر أدمن فقط. (اتحفظت نسخة محلية على هذا المتصفح.)');

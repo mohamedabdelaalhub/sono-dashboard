@@ -7,7 +7,7 @@
 
 function migrationErr(msg, table) {
   if (new RegExp('relation .*' + table + '.* does not exist|schema cache', 'i').test(msg))
-    return new Error(`جدول ${table} غير موجود في Supabase. شغّل ملف supabase/migration-amida.sql مرة واحدة من SQL Editor (بعد migration-tab-access.sql).`);
+    return new Error(`جدول ${table} غير موجود في Supabase. راجع تهيئة مخطط legacy_dashboard في مشروع Supabase الحالي.`);
   if (/row-level security|permission/i.test(msg))
     return new Error('لا تملك صلاحية الوصول لهذا القسم. اطلب من السوبر أدمن منحك تاب «توزيع أرباح الأميدا» من لوحة التحكم.');
   return new Error(msg);

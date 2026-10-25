@@ -82,7 +82,7 @@ function isSuperRow(r) { return RO().normalize(r.role) === 'سوبر أدمن'; 
 function dbErr(m) {
   m = String(m || '');
   if (/relation .* does not exist|schema cache/i.test(m))
-    return 'جدول الأدمنز غير موجود في Supabase. شغّل ملف supabase/setup.sql أولاً.';
+    return 'جدول الأدمنز غير متاح. راجع تهيئة مخطط legacy_dashboard في مشروع Supabase الحالي.';
   if (/row-level security|violates|permission/i.test(m))
     return 'ليست لديك صلاحية لهذا الإجراء — إدارة المستخدمين للسوبر أدمن فقط.';
   return m;

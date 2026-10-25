@@ -4,12 +4,12 @@ const {stripTypeScriptTypes}=require('node:module');
   const {authorized,request}=await import('../supabase/functions/dashboard-ai/validation.mjs');
   let handler,allowed=true,fetches=0,profile={active:true,role:'سوبر أدمن'},authValid=true;
   const settings={provider:'openai',model:'server-model',enable_for_admins:false,has_key:true};
-  const admin={auth:{getUser:async()=>authValid?{data:{user:{id:'test'}},error:null}:{data:{user:null},error:{}}},rpc:async()=>({data:allowed,error:null}),from(table){
+  const admin={auth:{getUser:async()=>authValid?{data:{user:{id:'test'}},error:null}:{data:{user:null},error:{}}},rpc:async(name)=>({data:name==='dashboard_ai_server_key'?'fake-provider-key':allowed,error:null}),from(table){
     const data=table==='admins'?profile:table==='app_settings'?settings:{api_key:'fake-provider-key'};
     const q={select:()=>q,eq:()=>q,maybeSingle:async()=>({data,error:null})};return q;
   }};
   const code=stripTypeScriptTypes(fs.readFileSync(path.resolve(__dirname,'../supabase/functions/dashboard-ai/index.ts'),'utf8').replace(/^import .*$/gm,''));
-  const ctx={authorized,request,createClient:()=>admin,Deno:{env:{get:()=> 'test'},serve:f=>handler=f},Request,Response,AbortSignal,console,fetch:async(url,options)=>{
+  const ctx={authorized,request,createClient:(_url,_key,options)=>{assert.equal(options.db.schema,'legacy_dashboard');return admin;},Deno:{env:{get:()=> 'test'},serve:f=>handler=f},Request,Response,AbortSignal,console,fetch:async(url,options)=>{
     fetches++;assert.equal(url,'https://api.openai.com/v1/chat/completions');assert.equal(JSON.parse(options.body).model,'server-model');return Response.json({choices:[{message:{content:'تحليل آمن'}}]});
   }};
   vm.createContext(ctx);vm.runInContext(code,ctx);

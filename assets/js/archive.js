@@ -164,7 +164,7 @@ async function remove(id) {
 function dbErr(m) {
   m = String(m || '');
   if (/relation .* does not exist|schema cache|reports/i.test(m) && /does not exist/i.test(m))
-    return 'جدول الأرشيف غير موجود. شغّل ملف supabase/migration-reports.sql في SQL Editor أولاً.';
+    return 'جدول الأرشيف غير متاح. راجع تهيئة مخطط legacy_dashboard في مشروع Supabase الحالي.';
   if (/row-level security|violates|permission/i.test(m))
     return 'ليست لديك صلاحية لهذا الإجراء على الأرشيف.';
   return m;
