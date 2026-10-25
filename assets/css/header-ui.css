@@ -1,0 +1,79 @@
+/* Swnw header. Screen-only styling preserves report printing. */
+@media screen {
+  #app .swnw-header {position:sticky;top:0;background:linear-gradient(120deg,#0F369D,#1C4FC7);border:0;color:#fff;box-shadow:0 4px 18px #0B2A7A18}
+  #app .swnw-header .usermenu {position:relative;inset:auto;flex:0 0 auto}
+  #app .swnw-header .topin {max-width:1440px;min-height:82px;padding:16px 24px;gap:12px;flex-wrap:nowrap}
+  #app .swnw-header .tstart {flex:1;min-width:0;overflow:visible;width:auto;gap:16px}
+  #app .swnw-header .brand {flex:1;min-width:0;gap:12px}
+  #app .swnw-header .brand>div:last-child {min-width:0}
+  #app .swnw-header #logoTop {width:46px;height:46px;flex:0 0 46px;padding:6px;background:#fff;border-radius:14px;box-shadow:0 2px 8px #0B2A7A18}
+  #app .swnw-header #logoTop img,#app .swnw-header #logoTop svg {width:100%;height:100%;object-fit:contain}
+  #app .swnw-header .brand b {color:#fff;font-size:17px;line-height:1.6;overflow-wrap:anywhere}
+  #app .swnw-header .brand span {display:block;color:#DCE7FF;font-size:12px;line-height:1.6}
+  #app .swnw-header #notifWrap {flex:0 0 44px;position:relative}
+  #app .swnw-header #btnNotif,#app .swnw-header #btnUser {min-height:44px;min-width:44px;margin:0;border:1px solid #FFFFFF38;background:#FFFFFF14;color:#fff;border-radius:13px;box-shadow:none;cursor:pointer}
+  #app .swnw-header #btnNotif {display:flex;align-items:center;justify-content:center;width:44px;height:44px;padding:10px;position:relative}
+  #app .swnw-header #btnNotif>svg {width:23px;height:23px;flex-shrink:0}
+  #app .swnw-header #btnUser {padding:5px 10px;gap:8px;max-width:260px}
+  #app .swnw-header #btnUser .uname {color:#fff;max-width:170px;font-size:13px}
+  #app .swnw-header .ucaret {color:#DCE7FF}
+  #app .swnw-header .uav {width:30px;height:30px;background:#fff;color:#0F369D}
+  #app .swnw-header #btnNotif:hover,#app .swnw-header #btnUser:hover,
+  #app .swnw-header #btnNotif[aria-expanded=true],#app .swnw-header #btnUser[aria-expanded=true] {background:#FFFFFF29;border-color:#FFFFFF7A}
+  #app .swnw-header button:focus-visible {outline:3px solid #F8AB86;outline-offset:3px}
+  #app .swnw-header .notifBadge {top:-5px;left:auto;inset-inline-end:-5px;min-width:19px;height:19px;line-height:15px;padding:0 4px;border:2px solid #1850C4;border-radius:12px;background:#F15A22;font:600 10px/15px var(--f-num);color:#fff}
+  #app .swnw-header .menu {color:#16212E;background:#fff;border:1px solid #E4E9F2;border-radius:16px;box-shadow:0 14px 42px #0B2A7A22;overflow:hidden;padding:0}
+  #app .swnw-header .swnw-notifications {left:auto;right:auto;inset-inline-end:0;width:min(380px,calc(100vw - 32px));max-width:calc(100vw - 32px);top:calc(100% + var(--swnw-menu-gap,20px))}
+  .swnw-notif-heading {display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 18px;background:linear-gradient(120deg,#0F369D,#1C4FC7);color:#fff}
+  .swnw-notif-heading>div>span {font-size:11px;line-height:1.8;color:#DCE7FF}
+  .swnw-notif-heading h2 {font-size:18px;margin:2px 0 0;color:#fff;line-height:1.5}
+  .swnw-live-label {display:inline-flex;align-items:center;gap:6px;font-size:10px;border:1px solid #FFFFFF3D;border-radius:20px;padding:5px 8px;white-space:nowrap}
+  .swnw-live-label i {width:5px;height:5px;border-radius:50%;background:#F6A37B}
+  .swnw-notif-list {max-height:min(50dvh,350px);overflow-y:auto;overscroll-behavior:contain;padding:6px;scrollbar-width:thin}
+  #notifList .notifItem,#notifFullList .notifItem {position:relative;padding:14px 14px;border:0;border-bottom:1px solid #EDF1F7;border-inline-start:3px solid transparent;font-size:13px;line-height:1.85;color:#34445C;overflow-wrap:anywhere}
+  #notifList .notifItem:last-child,#notifFullList .notifItem:last-child {border-bottom:0}
+  #notifList .notifItem b,#notifFullList .notifItem b {color:#6B7788;font-size:11px;line-height:1.9;margin-bottom:4px}
+  #notifList .notifItem.unread {background:#EEF4FF;border-inline-start-color:#0F369D;border-radius:10px;margin-block:3px;color:#16212E}
+  .swnw-notif-footer {border-top:1px solid #E4E9F2;padding:6px;background:#FAFCFF}
+  #app .swnw-header #btnNotifAll {display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;width:100%;padding:10px;color:#0F369D;font-size:12px;font-weight:600;border-radius:10px}
+  #btnNotifAll svg {width:16px;height:16px}
+  [dir=ltr] #btnNotifAll svg {transform:rotate(180deg)}
+  #app .swnw-header .menu button:focus-visible {outline:2px solid #0F369D;outline-offset:-3px;background:#EAF1FF}
+  #app .swnw-header .menu button:hover {background:#EAF1FF}
+  #app .swnw-header #userMenu {inset-inline-end:0;inset-inline-start:auto;min-width:250px;max-width:calc(100vw - 24px);padding-bottom:6px;top:calc(100% + var(--swnw-menu-gap,20px))}
+  #app .swnw-header .uhead {margin:0 0 6px;padding:16px 18px;background:linear-gradient(120deg,#0F369D,#1C4FC7);border:0;color:#fff;overflow-wrap:anywhere}
+  #app .swnw-header .uhead b {font-size:15px}
+  #app .swnw-header .uhead span {color:#DCE7FF;white-space:normal}
+  #app .swnw-header #userMenu>button {display:flex;gap:10px;align-items:center;min-height:44px;padding:10px 16px;font-size:13px}
+  #app .swnw-header #userMenu>button svg {width:18px;height:18px;flex-shrink:0;color:#8A94A6}
+  #app .swnw-header #userMenu>button:hover svg {color:#0F369D}
+  #app .swnw-header #userMenu>button.danger {color:#D0402A}
+  #app .swnw-header #userMenu>button.danger:hover {background:#FFF0ED}
+  #app .swnw-header #userMenu>button.danger:hover svg {color:#D0402A}
+  #notifPage .mbox {max-width:720px;background:#F4F7FD;border:1px solid #E4E9F2;border-radius:20px;overflow:hidden}
+  #notifPage .mhead {background:linear-gradient(120deg,#0F369D,#1C4FC7);color:#fff;padding:18px 20px}
+  #notifPage .mhead h2 {font-size:18px;color:#fff}
+  #notifPageClose {width:44px;min-height:44px;color:#fff;border:1px solid #FFFFFF38;background:#FFFFFF14;border-radius:12px}
+  #notifPage .mbody {padding:18px}
+  #notifFullList {border:1px solid #E4E9F2;border-radius:14px;background:#fff;overflow:hidden}
+  #notifPage .note {font-size:12px;line-height:1.9;color:#6B7788}
+  #notifPage .frow {flex-wrap:wrap}
+  #notifPage .frow select,#notifPage .frow input {min-height:42px;background:#FAFCFF;border:1px solid #D5DEEE;border-radius:11px;padding:7px 10px;font:inherit}
+  #notifPage #notifRetSave {background:#0F369D;color:#fff;border-color:#0F369D;min-height:42px;border-radius:11px}
+  @media(max-width:700px) {
+    #app .swnw-header .topin {min-height:76px;padding:12px;gap:8px}
+    #app .swnw-header .brand {gap:9px}
+    #app .swnw-header #logoTop {width:38px;height:38px;flex-basis:38px;border-radius:11px;padding:5px}
+    #app .swnw-header .brand b {font-size:13px;line-height:1.65}
+    #app .swnw-header .brand span {font-size:10px}
+    #app .swnw-header #btnUser {width:44px;height:44px;padding:6px;justify-content:center}
+    #app .swnw-header #btnUser .uname,#app .swnw-header #btnUser .ucaret {display:none}
+    #app .swnw-header #notifMenu {position:fixed;inset-inline:12px;top:var(--swnw-header-bottom,88px);width:auto;max-width:none;max-height:calc(100dvh - var(--swnw-header-bottom,88px) - 16px)}
+    #app .swnw-header #userMenu {position:fixed;inset-inline-end:12px;inset-inline-start:auto;top:var(--swnw-header-bottom,88px);min-width:0;width:min(280px,calc(100vw - 24px))}
+    .swnw-notif-list {max-height:min(52dvh,350px)}
+    #notifPage .mhead {padding:12px 14px}
+    #notifPage .mhead h2 {font-size:16px}
+    #notifPage .mbody {padding:14px}
+    #notifPage .frow select,#notifPage .frow input {font-size:16px;max-width:100%}
+  }
+}

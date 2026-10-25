@@ -12,6 +12,7 @@
 <link rel="icon" href="assets/img/mark.svg" type="image/svg+xml">
 <link rel="stylesheet" href="assets/css/styles.css?v=revenue-workspace-20261017-2">
 <link rel="stylesheet" href="assets/css/workspace-ui.css?v=revenue-workspace-20261017-2">
+<link rel="stylesheet" href="assets/css/header-ui.css?v=swnw-header-20261026-1">
 </head>
 <body>
 
@@ -136,7 +137,7 @@
      ============================================================ -->
 <div id="app" class="hide">
 
-<header class="top">
+<header class="top swnw-header" aria-label="رأس لوحة المؤشرات">
   <div class="topin">
     <div class="tstart">
       <div class="brand">
@@ -160,18 +161,21 @@
     </div>
 
     <div class="menuwrap" id="notifWrap" hidden>
-      <button class="btn ghost" id="btnNotif" style="position:relative">🔔<span class="notifBadge hide" id="notifBadge">0</span></button>
-      <div class="menu hide" id="notifMenu" style="min-width:280px">
-        <div style="padding:8px 10px;font-weight:600;border-bottom:1px solid #eee">آخر الأحداث</div>
-        <div id="notifList" style="padding:6px 4px;max-height:320px;overflow:auto"></div>
-        <div style="border-top:1px solid #eee"><button class="linkbtn" id="btnNotifAll" style="width:100%;padding:8px">كل الإشعارات ▸</button></div>
+      <button class="btn ghost swnw-bell" id="btnNotif" type="button" title="الإشعارات" aria-label="الإشعارات" aria-expanded="false" aria-controls="notifMenu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>
+        <span class="notifBadge hide" id="notifBadge" role="status" aria-live="polite" aria-atomic="true">0</span>
+      </button>
+      <div class="menu hide swnw-notifications" id="notifMenu" role="region" aria-labelledby="notifHeading">
+        <div class="swnw-notif-heading"><div><span>تابع المستجدات</span><h2 id="notifHeading">الإشعارات</h2></div><span class="swnw-live-label"><i aria-hidden="true"></i>آخر الأحداث</span></div>
+        <div id="notifList" class="swnw-notif-list"></div>
+        <div class="swnw-notif-footer"><button class="linkbtn" id="btnNotifAll" type="button">عرض كل الإشعارات <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg></button></div>
       </div>
     </div>
 
-    <div id="notifPage" class="modal hide">
+    <div id="notifPage" class="modal hide" role="dialog" aria-modal="true" aria-labelledby="notifPageTitle">
       <div class="mbox">
         <div class="mhead">
-          <h2>مركز الإشعارات</h2>
+          <h2 id="notifPageTitle">مركز الإشعارات</h2>
           <button class="btn ghost icon" id="notifPageClose" title="إغلاق">×</button>
         </div>
         <div class="mbody">
@@ -193,20 +197,20 @@
     </div>
 
     <div class="menuwrap usermenu">
-      <button class="btn ghost user" id="btnUser">
+      <button class="btn ghost user" id="btnUser" type="button" title="حساب المستخدم" aria-label="حساب المستخدم" aria-expanded="false" aria-controls="userMenu" aria-haspopup="menu">
         <span class="uav" id="uav">م</span>
         <span class="uname" id="who">—</span>
         <span class="ucaret">▾</span>
       </button>
-      <div class="menu hide" id="userMenu">
+      <div class="menu hide" id="userMenu" role="menu" aria-label="حساب المستخدم">
         <div class="uhead">
           <b id="uName2">—</b>
           <span id="uRole2">—</span>
           <span id="uMail2" dir="ltr"></span>
         </div>
-        <button id="btnAdmin" hidden>⚙&nbsp;&nbsp;لوحة التحكم</button>
-        <button id="btnPass">كلمة السر</button>
-        <button id="btnOut" class="danger">تسجيل الخروج</button>
+        <button id="btnAdmin" role="menuitem" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 3v3m0 12v3M3 12h3m12 0h3M5.6 5.6l2.1 2.1m8.6 8.6 2.1 2.1m0-12.8-2.1 2.1m-8.6 8.6-2.1 2.1"/><circle cx="12" cy="12" r="5"/></svg>لوحة التحكم</button>
+        <button id="btnPass" role="menuitem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3"/></svg>كلمة السر</button>
+        <button id="btnOut" class="danger" role="menuitem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M10 4H4v16h6m4-13 5 5-5 5m-6-5h11"/></svg>تسجيل الخروج</button>
       </div>
     </div>
   </div>
@@ -389,7 +393,8 @@
 <script src="assets/js/compute.js?v=revenue-workspace-20261017-2"></script>
 <script src="assets/js/study-store.js?v=revenue-workspace-20261017-2"></script>
 <script src="assets/js/workspace-ui.js?v=revenue-workspace-20261017-2"></script>
-<script src="assets/js/app.js?v=revenue-workspace-20261017-2"></script>
+<script src="assets/js/header-ui.js?v=swnw-header-20261026-1"></script>
+<script src="assets/js/app.js?v=swnw-header-20261026-1"></script>
 </body>
 </html>
 

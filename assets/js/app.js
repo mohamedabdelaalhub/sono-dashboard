@@ -217,7 +217,9 @@ function initNotifCenter() {
     const unread = seen ? rows.filter(r => r.created_at > seen).length : rows.length;
     const badge = $('notifBadge');
     badge.textContent = unread > 99 ? '99+' : String(unread);
-    badge.classList.toggle('hide', !unread);
+    const menuOpen = !$('notifMenu').classList.contains('hide');
+    badge.classList.toggle('hide', !unread || menuOpen);
+    $('btnNotif').setAttribute('aria-label', unread && !menuOpen ? 'الإشعارات، ' + unread + ' غير مقروءة' : 'الإشعارات');
     $('notifList').innerHTML = rows.length
       ? rows.map(r => renderRow(r, seen)).join('')
       : '<div class="notifItem">لا توجد إشعارات بعد.</div>';
