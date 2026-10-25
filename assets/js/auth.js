@@ -44,7 +44,9 @@ async function initSupabase() {
   const k = String((CFG.supabase || {}).anonKey || '').trim();
   if (!u || /XXXXXXXX/.test(u)) throw new Error('لم تُضبط بيانات Supabase في config.js (الرابط).');
   if (!k || /ضع-هنا/.test(k))   throw new Error('لم تُضبط بيانات Supabase في config.js (المفتاح).');
-  sb = root.supabase.createClient(u, k);
+  sb = root.supabase.createClient(u, k, {
+    db: { schema: (CFG.supabase || {}).schema || 'public' }
+  });
   return sb;
 }
 
@@ -313,7 +315,7 @@ async function diagnose() {
     try {
       const { error } = await c.from(t).select('*', { count: 'exact', head: true });
       if (error && /does not exist|schema cache|42P01/i.test(error.message))
-        add(false, 'جدول ' + t, 'غير موجود — شغّل ملف supabase/setup.sql في SQL Editor.');
+        add(false, 'جدول ' + t, 'غير موجود — راجع تهيئة مخطط legacy_dashboard في مشروع Supabase الحالي.');
       else if (error && /Invalid API key|JWT|apikey/i.test(error.message))
         add(false, 'جدول ' + t, 'المفتاح مرفوض من الخادم. انسخه من جديد من Project Settings ← API Keys.');
       else

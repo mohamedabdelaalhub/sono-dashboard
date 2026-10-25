@@ -1,4 +1,4 @@
-import {createClient} from 'npm:@supabase/supabase-js@2';
+import {createClient} from 'npm:@supabase/supabase-js@2.118.0';
 import {authorized,request} from './validation.mjs';
 
 const origin='https://mohamedabdelaalhub.github.io';
@@ -13,7 +13,7 @@ Deno.serve(async(req:Request)=>{
     if(Number(req.headers.get('content-length')||0)>400000)return reply({error:'الطلب يتجاوز الحجم المتاح.'},413);
     const token=(req.headers.get('authorization')||'').replace(/^Bearer\s+/i,'');
     if(!token)return reply({error:'سجّل الدخول أولًا.'},401);
-    const admin=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false,autoRefreshToken:false}});
+    const admin=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{db:{schema:'legacy_dashboard'},auth:{persistSession:false,autoRefreshToken:false}});
     const {data:auth,error:authError}=await admin.auth.getUser(token);
     if(authError||!auth.user)return reply({error:'الجلسة انتهت. سجّل الدخول مرة أخرى.'},401);
     const [{data:profile,error:pError},{data:settings,error:sError}]=await Promise.all([
@@ -30,13 +30,13 @@ Deno.serve(async(req:Request)=>{
     const {data:allowed,error:limitError}=await admin.rpc('consume_ai_request',{uid:auth.user.id});
     if(limitError)return reply({error:'تهيئة حماية الخدمة لم تكتمل.'},503);
     if(!allowed)return reply({error:'انتظر دقيقة قبل إرسال طلب آخر.'},429);
-    const {data:secret,error:secretError}=await admin.from('app_secrets').select('api_key').eq('id',1).maybeSingle();
-    if(secretError||!secret?.api_key)return reply({error:'لم يُضبط مفتاح الخدمة على الخادم.'},503);
+    const {data:apiKey,error:secretError}=await admin.rpc('dashboard_ai_server_key');
+    if(secretError||!apiKey)return reply({error:'لم يُضبط مفتاح الخدمة على الخادم.'},503);
     const openai=settings.provider==='openai';
     const url=openai?'https://api.openai.com/v1/chat/completions':'https://api.anthropic.com/v1/messages';
     const headers:Record<string,string>={'content-type':'application/json'};
-    if(openai)headers.authorization='Bearer '+secret.api_key;
-    else{headers['x-api-key']=secret.api_key;headers['anthropic-version']='2023-06-01';}
+    if(openai)headers.authorization='Bearer '+apiKey;
+    else{headers['x-api-key']=apiKey;headers['anthropic-version']='2023-06-01';}
     const payload=openai?{model:settings.model,max_completion_tokens:input.maxTokens,messages:[{role:'system',content:system},...input.messages]}:{model:settings.model,max_tokens:input.maxTokens,system,messages:input.messages};
     const response=await fetch(url,{method:'POST',headers,body:JSON.stringify(payload),signal:AbortSignal.timeout(90000)});
     if(!response.ok)return reply({error:response.status===429?'تجاوز حساب المزوّد حد الاستخدام أو الرصيد.':'رفض المزوّد الطلب. راجع إعدادات النموذج والمفتاح.'},response.status===429?429:502);

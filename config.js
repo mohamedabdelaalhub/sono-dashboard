@@ -35,8 +35,9 @@ window.SONO_CONFIG = {
   authMode : 'supabase',
 
   supabase : {
-    url     : 'https://raocrmssjqsozibniujc.supabase.co',
-    anonKey : 'sb_publishable__TYwltqElKKLVIMPEfQEyg_nvP62RQk'
+    url     : 'https://uuijfbpgvtdxgaosqpxo.supabase.co',
+    anonKey : 'sb_publishable_QZ_h12VmRVm7PoK69bKjpg_2ATE1zNj',
+    schema  : 'legacy_dashboard'
   },
 
   localAdmins : [

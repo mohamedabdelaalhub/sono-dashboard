@@ -70,7 +70,7 @@ async function save(sb, key, tabsArray, email) {
     .upsert({ admin_id: key, tabs: tabsArray, updated_at: new Date().toISOString() }, { onConflict: 'admin_id' });
   if (error) {
     if (/relation .*tab_access.* does not exist|schema cache/i.test(error.message))
-      throw new Error('جدول tab_access غير موجود في Supabase. شغّل ملف supabase/migration-tab-access.sql مرة واحدة من SQL Editor.');
+      throw new Error('جدول tab_access غير متاح. راجع تهيئة مخطط legacy_dashboard في مشروع Supabase الحالي.');
     if (/row-level security|permission/i.test(error.message))
       throw new Error('صلاحية تعديل التابات للسوبر أدمن فقط.');
     throw new Error(error.message);

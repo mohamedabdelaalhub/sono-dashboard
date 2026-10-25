@@ -1,7 +1,8 @@
-project_id = "sono-dashboard"
+project_id = "uuijfbpgvtdxgaosqpxo"
 
 [functions.dashboard-ai]
-verify_jwt = true
+# The handler validates every access token with auth.getUser.
+verify_jwt = false
 entrypoint = "./functions/dashboard-ai/index.ts"
 
 [functions.operations-relay]
